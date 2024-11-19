@@ -10,3 +10,65 @@
 #   universal: false
 
 -e file:.
+contourpy==1.3.1
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
+filelock==3.16.1
+    # via torch
+fonttools==4.55.0
+    # via matplotlib
+fsspec==2024.10.0
+    # via torch
+jinja2==3.1.4
+    # via torch
+kiwisolver==1.4.7
+    # via matplotlib
+markupsafe==3.0.2
+    # via jinja2
+matplotlib==3.9.2
+    # via ellishape
+mpmath==1.3.0
+    # via sympy
+networkx==3.4.2
+    # via torch
+numpy==2.1.3
+    # via contourpy
+    # via matplotlib
+    # via opencv-python
+    # via pandas
+opencv-python==4.10.0.84
+    # via ellishape
+packaging==24.2
+    # via matplotlib
+pandas==2.2.3
+    # via ellishape
+pillow==11.0.0
+    # via matplotlib
+pyparsing==3.2.0
+    # via matplotlib
+pyqt5==5.15.11
+    # via ellishape
+pyqt5-qt5==5.15.2
+    # via pyqt5
+pyqt5-sip==12.15.0
+    # via pyqt5
+python-dateutil==2.9.0.post0
+    # via matplotlib
+    # via pandas
+pytz==2024.2
+    # via pandas
+segment-anything==1.0
+    # via ellishape
+setuptools==75.5.0
+    # via torch
+six==1.16.0
+    # via python-dateutil
+sympy==1.13.1
+    # via torch
+torch==2.5.1
+    # via ellishape
+typing-extensions==4.12.2
+    # via torch
+tzdata==2024.2
+    # via pandas
