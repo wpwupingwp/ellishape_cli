@@ -4,6 +4,8 @@ from sys import argv
 
 import cv2
 import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 
 from global_vars import log
 
@@ -204,8 +206,8 @@ def gui_chain_code_func(axis_info, origin_ori):
             backwordflag = False
 
     chain_code = chain_code_ori[:numofpoints]
-    print(chain_code)
-    # endpoint = backword_points[0] 
+    log.debug(f'{chain_code}')
+    # endpoint = backword_points[0]
     oringin = origin_ori
     print(oringin)
     # print(endpoint)
@@ -216,7 +218,7 @@ def gui_chain_code_func(axis_info, origin_ori):
 def calc_traversal_dist(ai):
     x_ = 0
     y_ = 0
-    if(np.isscalar(ai)):
+    if np.isscalar(ai):
         p = np.zeros((1, 2))
         x_ += np.sign(6 - ai) * np.sign(2 - ai)
         y_ += np.sign(4 - ai) * np.sign(ai)
@@ -255,362 +257,267 @@ def is_completed_chain_code(chain_code, start_point):
     return is_closed, end_point
 
 
-def chain_code(img_file: Path):
-    # read color images and convert to gray
-    img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
-    img_result = np.zeros_like(img)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # find contours
-    contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL,
-                                   cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        log.error('Cannot find boundary in the image file')
-        return None
-    max_contour = max(contours, key=cv2.contourArea)
-    max_contour = np.reshape(max_contour, (
-    max_contour.shape[0], max_contour.shape[2]))
-    log.debug(f'{max_contour[0][0]=}')
-    log.info(f'Image size: {img.shape}')
-    cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
-    # cv2.imshow('result_image',result_image)
-
-    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    boundary = max_contour
-    chaincode, oringin = gui_chain_code_func(img_result, max_contour[0])
-    log.debug(f'Chaincode shape: {chaincode.shape}')
-    if len(chaincode) == 0:
-        log.error('Cannot generate chain code from the image')
-        return None
-
-    log.debug(f'{boundary=}')
-    # Draw green line for boundary
-    cv2.polylines(img_result, boundary, isClosed=True, color=(0, 255, 0),
-                  thickness=3)
-
-    x_ = calc_traversal_dist(chaincode)
-    x = np.vstack(([0, 0], x_))
-    # print(x)
-
-    # Draw red line for chain code traversal
-    cv2.polylines(img_result, x, isClosed=True, color=(0, 0, 255),
-                  thickness=3)
-    is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
-
-    # todo: what is it?
-    # self.graphicsView_4.fitInView(self.graphicsView_4.sceneRect(),
-    #                               Qt.KeepAspectRatio)
-    # # Get the current transform
-    # transform = self.graphicsView_4.transform()
-    # # Apply the scale transformation
-    # transform.scale(7, 7)
-    # self.graphicsView_4.setTransform(transform)
-    # # Center the view on the specified point
-    # self.graphicsView_4.centerOn(QPointF(endpoint[1], endpoint[0]))
-    if not is_closed:
-        log.error(f'Chain code is not closed')
-        log.error(f'Chain code length: {chaincode.shape[0]}')
-    else:
-        log.debug(f'Chain code is closed')
-        log.debug(f'{chaincode=}')
-        log.debug(f'{chaincode.shape=}')
-        # self.pushButton_9.setEnabled(True)
-        # self.pushButton_10.setEnabled(True)
-        # self.pushButton_17.setEnabled(True)
-    EFA()
-    return chaincode, img_file, id_full
+def get_options(self):
+    # todo: what is option?
+    ro = self.checkBox_4.isChecked()
+    sc = self.checkBox_3.isChecked()
+    re = self.checkBox_2.isChecked()
+    y_sy = self.checkBox_6.isChecked()
+    x_sy = self.checkBox_7.isChecked()
+    sta = self.checkBox_5.isChecked()
+    trans = self.checkBox.isChecked()
+    option = [ro, sc, re, y_sy, x_sy, sta, trans]
+    return option
 
 
-class EFA():
-    def __init__(self, chaincode, filename, id_full):
-        super().__init__()
-        self.setObjectName("MainWindow")
-        self.resize(1143, 543)
-        font = QtGui.QFont()
-        font.setFamily("Arial")
-        font.setPointSize(10)
-        self.setFont(font)
-        self.centralwidget = QtWidgets.QWidget(self)
-        self.centralwidget.setObjectName("centralwidget")
-        self.checkBox = QtWidgets.QCheckBox(self.centralwidget)
-        self.checkBox.setGeometry(QtCore.QRect(70, 100, 141, 51))
-        self.checkBox.setObjectName("checkBox")
-        self.checkBox.setChecked(True)
-        self.checkBox_2 = QtWidgets.QCheckBox(self.centralwidget)
-        self.checkBox_2.setGeometry(QtCore.QRect(70, 150, 141, 51))
-        self.checkBox_2.setObjectName("checkBox_2")
-        self.checkBox_2.setChecked(True)
-        self.checkBox_3 = QtWidgets.QCheckBox(self.centralwidget)
-        self.checkBox_3.setGeometry(QtCore.QRect(70, 200, 141, 51))
-        self.checkBox_3.setObjectName("checkBox_3")
-        self.checkBox_3.setChecked(True)
-        self.checkBox_4 = QtWidgets.QCheckBox(self.centralwidget)
-        self.checkBox_4.setGeometry(QtCore.QRect(70, 250, 141, 51))
-        self.checkBox_4.setObjectName("checkBox_4")
-        self.checkBox_4.setChecked(True)
-        self.checkBox_5 = QtWidgets.QCheckBox(self.centralwidget)
-        self.checkBox_5.setGeometry(QtCore.QRect(70, 300, 141, 51))
-        self.checkBox_5.setObjectName("checkBox_5")
-        self.checkBox_5.setChecked(True)
-        self.checkBox_6 = QtWidgets.QCheckBox(self.centralwidget)
-        self.checkBox_6.setGeometry(QtCore.QRect(70, 360, 141, 51))
-        self.checkBox_6.setObjectName("checkBox_6")
-        self.checkBox_6.setChecked(True)
-        self.checkBox_7 = QtWidgets.QCheckBox(self.centralwidget)
-        self.checkBox_7.setGeometry(QtCore.QRect(70, 420, 141, 51))
-        self.checkBox_7.setObjectName("checkBox_7")
-        self.checkBox_7.setChecked(True)
-        self.groupBox = QtWidgets.QGroupBox(self.centralwidget)
-        self.groupBox.setGeometry(QtCore.QRect(20, 80, 221, 401))
-        self.groupBox.setObjectName("groupBox")
-        self.widget = QtWidgets.QWidget(self.centralwidget)
-        self.widget.setGeometry(QtCore.QRect(250, 90, 421, 371))
-        self.widget.setObjectName("widget")
-        self.widget_3 = QtWidgets.QWidget(self.centralwidget)
-        self.widget_3.setGeometry(QtCore.QRect(690, 90, 431, 371))
-        self.widget_3.setObjectName("widget_3")
-        self.label = QtWidgets.QLabel(self.centralwidget)
-        self.label.setGeometry(QtCore.QRect(310, 50, 221, 21))
-        self.label.setObjectName("label")
-        self.label_2 = QtWidgets.QLabel(self.centralwidget)
-        self.label_2.setGeometry(QtCore.QRect(310, 10, 231, 21))
-        self.label_2.setObjectName("label_2")
-        self.textEdit = QtWidgets.QTextEdit(self.centralwidget)
-        self.textEdit.setGeometry(QtCore.QRect(550, 10, 81, 31))
-        self.textEdit.setObjectName("textEdit")
-        self.textEdit_2 = QtWidgets.QTextEdit(self.centralwidget)
-        self.textEdit_2.setGeometry(QtCore.QRect(550, 50, 81, 31))
-        self.textEdit_2.setObjectName("textEdit_2")
-        self.pushButton = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton.setGeometry(QtCore.QRect(700, 10, 201, 31))
-        self.pushButton.setObjectName("pushButton")
-        self.pushButton_2 = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton_2.setGeometry(QtCore.QRect(700, 50, 201, 31))
-        self.pushButton_2.setObjectName("pushButton_2")
-        self.pushButton_3 = QtWidgets.QPushButton(self.centralwidget)
-        self.pushButton_3.setGeometry(QtCore.QRect(910, 50, 201, 31))
-        self.pushButton_3.setObjectName("pushButton_3")
-        self.label_3 = QtWidgets.QLabel(self.centralwidget)
-        self.label_3.setGeometry(QtCore.QRect(250, 470, 421, 16))
-        font = QtGui.QFont()
-        font.setFamily("Arial")
-        font.setPointSize(8)
-        self.label_3.setFont(font)
-        self.label_3.setObjectName("label_3")
-        self.label_4 = QtWidgets.QLabel(self.centralwidget)
-        self.label_4.setGeometry(QtCore.QRect(750, 470, 421, 16))
-        font = QtGui.QFont()
-        font.setFamily("Arial")
-        font.setPointSize(8)
-        self.label_4.setFont(font)
-        self.label_4.setObjectName("label_4")
-        self.graphicsView = QtWidgets.QGraphicsView(self.centralwidget)
-        self.graphicsView.setGeometry(QtCore.QRect(250, 90, 421, 371))
-        self.graphicsView.setObjectName("graphicsView")
-        self.graphicsView_2 = QtWidgets.QGraphicsView(self.centralwidget)
-        self.graphicsView_2.setGeometry(QtCore.QRect(690, 90, 431, 371))
-        self.graphicsView_2.setObjectName("graphicsView_2")
-        self.setCentralWidget(self.centralwidget)
-        self.menubar = QtWidgets.QMenuBar(self)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1143, 25))
-        self.menubar.setObjectName("menubar")
-        self.setMenuBar(self.menubar)
-        self.statusbar = QtWidgets.QStatusBar(self)
-        self.statusbar.setObjectName("statusbar")
-        self.setStatusBar(self.statusbar)
+def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
+    a = np.zeros(n)
+    b = np.zeros(n)
+    c = np.zeros(n)
+    d = np.zeros(n)
 
-        _translate = QtCore.QCoreApplication.translate
-        self.setWindowTitle(_translate("MainWindow", "EFA"))
-        self.checkBox.setText(_translate("MainWindow", "Translatoin"))
-        self.checkBox_2.setText(_translate("MainWindow", "Reverse"))
-        self.checkBox_3.setText(_translate("MainWindow", "Scale"))
-        self.checkBox_4.setText(_translate("MainWindow", "Rotate"))
-        self.checkBox_5.setText(_translate("MainWindow", "Starting point"))
-        self.checkBox_6.setText(_translate("MainWindow", "Y-symmetric"))
-        self.checkBox_7.setText(_translate("MainWindow", "X-symmetric"))
-        self.groupBox.setTitle(
-            _translate("MainWindow", "normalization options"))
-        self.label.setText(
-            _translate("MainWindow", "Visualized harmonic number:"))
-        self.label_2.setText(
-            _translate("MainWindow", "Maximum harmonic number:"))
-        self.pushButton.setText(_translate("MainWindow", "Calculate and save "))
-        self.pushButton_2.setText(_translate("MainWindow", "Plot curve"))
-        self.pushButton_3.setText(_translate("MainWindow", "Save curve"))
-        self.textEdit.setText("35")
-        self.textEdit_2.setText("35")
-        self.label_3.setText(_translate("self",
-                                        "reconstructed shapes using EFDs (red line) and chain-code (bhue line)"))
-        self.label_4.setText(
-            _translate("self", "reconstructed shapes using normalized EFDs"))
+    for i in range(n):
+        # print(ai.shape)
+        harmonic_coeff = calc_harmonic_coefficients_modify(ai, i + 1, 0)
+        a[i] = harmonic_coeff[0]
+        b[i] = harmonic_coeff[1]
+        c[i] = harmonic_coeff[2]
+        d[i] = harmonic_coeff[3]
 
-        self.scene = QGraphicsScene()
-        self.scene_1 = QGraphicsScene()
-        self.chaincode = chaincode
-        self.id_full = id_full
-        self.filename = filename
+    A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
+    # print(A0)
+    # print(C0)
+    # print(Tk)
+    # print(T)
 
-        self.checkBox_4.stateChanged.connect(self.onCheckBox4StateChanged)
-        self.checkBox_5.stateChanged.connect(self.onCheckBox4StateChanged)
-        self.pushButton.clicked.connect(self.cal_hs)
-        self.pushButton_2.clicked.connect(self.plot_hs)
-        self.pushButton_3.clicked.connect(self.save_hs)
+    # Normalization procedure
+    if normalized:
+        ro = option[0]
+        sc = option[1]
+        re = option[2]
+        y_sy = option[3]
+        x_sy = option[4]
+        sta = option[5]
+        trans = option[6]
 
-    def onCheckBox4StateChanged(self):
-        # Assuming you have imported Tkinter as tk
-        # and you have a Tkinter variable handles
-        t_1 = self.checkBox_4.isChecked()
-        t_2 = self.checkBox_5.isChecked()
+        # Remove DC components
+        if trans:
+            A0 = 0
+            C0 = 0
 
-        if t_1 == 1 and t_2 == 1:
-            self.checkBox_6.setEnabled(True)
-            self.checkBox_7.setEnabled(True)
-        else:
-            self.checkBox_6.setChecked(False)
-            self.checkBox_7.setChecked(False)
-            self.checkBox_6.setEnabled(False)
-            self.checkBox_7.setEnabled(False)
+        if re:
+            CrossProduct = a[0] * d[0] - c[0] * b[0]
+            if CrossProduct < 0:
+                b = -b
+                d = -d
 
-    def cal_hs(self):
-        circle = self.textEdit_2.toPlainText()
-        numofharmoinc = int(circle)
+        tan_theta2 = 2 * (a[0] * b[0] + c[0] * d[0]) / (
+                a[0] ** 2 + c[0] ** 2 - b[0] ** 2 - d[0] ** 2)
+        theta1 = 0.5 * np.arctan(tan_theta2)
+        if theta1 < 0:
+            theta1 += np.pi / 2
+        sin_2theta = np.sin(2 * theta1)
+        cos_2theta = np.cos(2 * theta1)
+        cos_theta_square = (1 + cos_2theta) / 2
+        sin_theta_square = (1 - cos_2theta) / 2
 
-        ro = self.checkBox_4.isChecked()
-        sc = self.checkBox_3.isChecked()
-        re = self.checkBox_2.isChecked()
-        y_sy = self.checkBox_6.isChecked()
-        x_sy = self.checkBox_7.isChecked()
-        sta = self.checkBox_5.isChecked()
-        trans = self.checkBox.isChecked()
-        option = [ro, sc, re, y_sy, x_sy, sta, trans]
+        axis_theta1 = (a[0] ** 2 + c[0] ** 2) * cos_theta_square + (
+                a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
+                              b[0] ** 2 + d[0] ** 2) * sin_theta_square
+        axis_theta2 = (a[0] ** 2 + c[0] ** 2) * sin_theta_square - (
+                a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
+                              b[0] ** 2 + d[0] ** 2) * cos_theta_square
 
-        print(self.chaincode)
+        # print(axis_theta1)
+        # print(axis_theta2)
 
-        _, a, b, c, d = fourier_approx_norm_modify(self.chaincode,
-                                                   numofharmoinc, 1000, 1, 0,
-                                                   option)
+        if axis_theta1 < axis_theta2:
+            theta1 += np.pi / 2
 
-        t = np.transpose([a, b, c, d])
-        Hs = np.reshape(t, (1, -1))
-        coffs = [["filepath"]]
-        cols = numofharmoinc * 4
-        matrix = []
-        for col in range(1, cols + 1):
-            letter = chr(ord('a') + (col - 1) % 4)
-            number = str((col - 1) // 4 + 1)
-            matrix.append(letter + number)
+        costh1 = np.cos(theta1)
+        sinth1 = np.sin(theta1)
+        a_star_1 = costh1 * a[0] + sinth1 * b[0]
+        c_star_1 = costh1 * c[0] + sinth1 * d[0]
+        psi1 = np.arctan(c_star_1 / a_star_1)
+        if psi1 < 0:
+            psi1 += np.pi
 
-        coffs[0].extend(matrix)
-        coffs.append([f"{self.filename[:-4]}_{self.id_full}"])
-        coffs[1].extend(Hs.flatten().tolist())
+        E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
+        # print(E)
 
-        df = pd.DataFrame(coffs)
-        # 或者使用 with 语句，确保在写入后关闭 workbook
-        with pd.ExcelWriter(
-                f"results/{self.filename[:-4]}_{self.id_full}_info.xlsx",
-                engine='openpyxl', mode='a',
-                if_sheet_exists='replace') as writer:
-            df.to_excel(writer, sheet_name='Sheet2', index=False, header=False)
-        QMessageBox.information(None, "Success", "  done!  ")
+        if sc:
+            a /= E
+            b /= E
+            c /= E
+            d /= E
 
-    def plot_hs(self):
-        self.scene.clear()
-        self.scene_1.clear()
-        chain_code = self.chaincode
-        max_numofharmoinc = int(self.textEdit.toPlainText())
-        mode = 0
+        cospsi1 = np.cos(psi1)
+        sinpsi1 = np.sin(psi1)
+        normalized_all = np.zeros((n, 4))
 
-        if chain_code.size > 0:
-            contour_points = np.array([0, 0])
-            chain_points = code2axis(chain_code, contour_points)
-            for i in range(len(chain_points) - 1):
-                x1, y1 = chain_points[i, :]
-                x2, y2 = chain_points[i + 1, :]
-                line = QGraphicsLineItem(x1, y1, x2, y2)
-                line.setPen(QPen(QColor(0, 0, 255)))
-                self.scene.addItem(line)
-                self.scene_1.setSceneRect(self.scene_1.itemsBoundingRect())
+        if ro:
+            for i in range(n):
+                normalized = np.dot([[cospsi1, sinpsi1], [-sinpsi1, cospsi1]],
+                                    [[a[i], b[i]], [c[i], d[i]]])
+                # print(normalized.reshape(1, 4))
+                normalized_all[i] = normalized.reshape(1, 4)
+            a = normalized_all[:, 0]
+            b = normalized_all[:, 1]
+            c = normalized_all[:, 2]
+            d = normalized_all[:, 3]
 
-            circle = self.textEdit_2.toPlainText()
-            numofharmoinc = int(circle)
-            if numofharmoinc > max_numofharmoinc:
-                QMessageBox.warning(self, 'message',
-                                    f"The input must be less than {max_numofharmoinc}")
-            else:
-                ro = self.checkBox_4.isChecked()
-                sc = self.checkBox_3.isChecked()
-                re = self.checkBox_2.isChecked()
-                y_sy = self.checkBox_6.isChecked()
-                x_sy = self.checkBox_7.isChecked()
-                sta = self.checkBox_5.isChecked()
-                trans = self.checkBox.isChecked()
-                option = [ro, sc, re, y_sy, x_sy, sta, trans]
+        normalized_all_1 = np.zeros((n, 4))
+        print(theta1)
 
-                x_, _, _, _, _ = fourier_approx_norm_modify(chain_code,
-                                                            numofharmoinc, 400,
-                                                            0, mode, option)
-                chain_points_approx = np.vstack((x_, x_[0, :]))
-                # print(chain_points_approx)
+        if sta:
+            for i in range(n):
+                normalized_1 = np.dot([[a[i], b[i]], [c[i], d[i]]], [
+                    [np.cos(theta1 * (i + 1)), -np.sin(theta1 * (i + 1))],
+                    [np.sin(theta1 * (i + 1)), np.cos(theta1 * (i + 1))]])
+                normalized_all_1[i, :] = normalized_1.reshape(1, 4)
+                # print(normalized_1)
+            a = normalized_all_1[:, 0]
+            b = normalized_all_1[:, 1]
+            c = normalized_all_1[:, 2]
+            d = normalized_all_1[:, 3]
 
-                for i in range(len(chain_points_approx) - 1):
-                    x1 = chain_points_approx[i, 0] + contour_points[0]
-                    y1 = contour_points[1] - chain_points_approx[i, 1]
+            if a[0] < 0:
+                a = -a
+                d = -d
 
-                    x2 = chain_points_approx[i + 1, 0] + contour_points[0]
-                    y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+        if y_sy:
+            if a[1] < 0:
+                for i in range(1, n):
+                    signval = (-1) ** (((i + 1) % 2) + 1)
+                    a[i] = signval * a[i]
+                    d[i] = signval * d[i]
+                    signval = (-1) ** ((i + 1) % 2)
+                    b[i] = signval * b[i]
+                    c[i] = signval * c[i]
 
-                    line = QGraphicsLineItem(y1, x1, y2, x2)
-                    line.setPen(QPen(QColor(255, 0, 0)))
-                    self.scene.addItem(line)
-                self.graphicsView.setScene(self.scene)
-                self.graphicsView.fitInView(self.graphicsView.sceneRect(),
-                                            Qt.KeepAspectRatio)
+        if x_sy:
+            if b[1] < 0:
+                b[1:] *= -1
+                c[1:] *= -1
 
-                x_, _, _, _, _ = fourier_approx_norm_modify(chain_code,
-                                                            numofharmoinc, 400,
-                                                            1, mode, option)
-                chain_points_approx = x_
-                for i in range(len(chain_points_approx) - 1):
-                    x1 = chain_points_approx[i, 0] + contour_points[0]
-                    y1 = contour_points[1] - chain_points_approx[i, 1]
+    # print(a)
+    # print(b)
+    # print(c)
+    # print(d)
+    output = np.zeros((m, 2))
 
-                    x2 = chain_points_approx[i + 1, 0] + contour_points[0]
-                    y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+    for t in range(m):
+        x_ = 0.0
+        y_ = 0.0
+        for i in range(n):
+            x_ += (a[i] * np.cos(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T) +
+                   b[i] * np.sin(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T))
+            y_ += (c[i] * np.cos(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T) +
+                   d[i] * np.sin(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T))
+        output[t, 0] = A0 + x_
+        output[t, 1] = C0 + y_
 
-                    line = QGraphicsLineItem(y1, x1, y2, x2)
-                    line.setPen(QPen(QColor(255, 0, 0), 0.01))
+    return output, a, b, c, d
+def cal_hs(chaincode, filename, id_full, numofharmonic: int):
+    # todo: get options
+    self = dict()
+    circle = self.textEdit_2.toPlainText()
+    numofharmoinc = numofharmonic
+    option = get_options()
 
-                    self.scene_1.addItem(line)
-                    self.scene_1.setSceneRect(self.scene_1.itemsBoundingRect())
+    _, a, b, c, d = fourier_approx_norm_modify(
+        chaincode, numofharmoinc, 1000, 1, 0, option)
 
-                self.graphicsView_2.setScene(self.scene_1)
-                self.graphicsView_2.fitInView(self.graphicsView_2.sceneRect(),
-                                              Qt.KeepAspectRatio)
+    t = np.transpose([a, b, c, d])
+    Hs = np.reshape(t, (1, -1))
+    coffs = [["filepath"]]
+    cols = numofharmoinc * 4
+    matrix = []
+    for col in range(1, cols + 1):
+        letter = chr(ord('a') + (col - 1) % 4)
+        number = str((col - 1) // 4 + 1)
+        matrix.append(letter + number)
 
-        else:
-            print('Chain code is null')
-            QMessageBox.warning(self, '', 'Chain code is null')
+    coffs[0].extend(matrix)
+    coffs.append([f"{filename[:-4]}_{id_full}"])
+    coffs[1].extend(Hs.flatten().tolist())
 
-    def save_hs(self):
-        options = QFileDialog.Options()
-        defaultPath = './results/'
-        defaultFileName = f"{defaultPath}{'_'.join(self.filename.split('.')[:-1])}_{self.id_full}.png"
-        filePath, _ = QFileDialog.getSaveFileName(self, "Save File",
-                                                  defaultFileName,
-                                                  "PNG files (*.png);;JPEG files (*.jpg);;All Files (*)",
-                                                  options=options)
+    # todo: replace with csv
+    df = pd.DataFrame(coffs)
+    # 或者使用 with 语句，确保在写入后关闭 workbook
+    with pd.ExcelWriter(
+            f"results/{filename[:-4]}_{id_full}_info.xlsx",
+            engine='openpyxl', mode='a',
+            if_sheet_exists='replace') as writer:
+        df.to_excel(writer, sheet_name='Sheet2', index=False, header=False)
+    return
 
-        if filePath:
-            extension = filePath.split('.')[-1].lower()
-            pixmap = QApplication.primaryScreen().grabWindow(
-                self.winId())  # 截取整个屏幕或指定窗口
-            if extension == 'png':
-                pixmap.save(filePath + '.png')
-            elif extension == 'jpg':
-                pixmap.save(filePath + '.jpg')
-            else:
-                print('Unsupported file format. Image not saved.')
 
-            print(f'Image saved as: {filePath}')
+def plot_hs(chain_code, filename, id_full, numeofharmonic: int):
+    max_numofharmoinc = int(self.textEdit.toPlainText())
+    mode = 0
+
+    if chain_code.size == 0:
+        log.error(f'Empty chain code')
+        return
+    contour_points = np.array([0, 0])
+    chain_points = code2axis(chain_code, contour_points)
+    # draw blue line
+    img = np.zeros((width, height, 3))
+    cv2.polylines(img, [chain_points], False, (255, 0, 0), 2)
+
+    numofharmoinc = numeofharmonic
+    if numofharmoinc > max_numofharmoinc:
+        log.error(f'{numofharmoinc=} must be less than {max_numofharmoinc=}')
+        return
+
+    option = get_options(self)
+
+    x_, _, _, _, _ = fourier_approx_norm_modify(chain_code,
+                                                numofharmoinc, 400,
+                                                0, mode, option)
+    chain_points_approx = np.vstack((x_, x_[0, :]))
+    # print(chain_points_approx)
+
+    # todo: ???
+    for i in range(len(chain_points_approx) - 1):
+        x1 = chain_points_approx[i, 0] + contour_points[0]
+        y1 = contour_points[1] - chain_points_approx[i, 1]
+
+        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
+        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+
+        line = QGraphicsLineItem(y1, x1, y2, x2)
+        line.setPen(QPen(QColor(255, 0, 0)))
+        self.scene.addItem(line)
+    self.graphicsView.setScene(self.scene)
+    self.graphicsView.fitInView(self.graphicsView.sceneRect(),
+                                Qt.KeepAspectRatio)
+
+    x_, _, _, _, _ = fourier_approx_norm_modify(chain_code,
+                                                numofharmoinc, 400,
+                                                1, mode, option)
+    chain_points_approx = x_
+    for i in range(len(chain_points_approx) - 1):
+        x1 = chain_points_approx[i, 0] + contour_points[0]
+        y1 = contour_points[1] - chain_points_approx[i, 1]
+
+        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
+        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+
+        line = QGraphicsLineItem(y1, x1, y2, x2)
+        line.setPen(QPen(QColor(255, 0, 0), 0.01))
+
+        self.scene_1.addItem(line)
+        self.scene_1.setSceneRect(self.scene_1.itemsBoundingRect())
+
+    self.graphicsView_2.setScene(self.scene_1)
+    self.graphicsView_2.fitInView(self.graphicsView_2.sceneRect(),
+                                  Qt.KeepAspectRatio)
+
+    # save_hs
+    cv2.imwrite(filename, hs_plot)
+    return
 
 
 def code2axis(chain_code, start_point):
@@ -728,23 +635,23 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
         q_y = delta_y / delta_t
 
         sigma_a += two_n_pi * (
-                    d[p, 0] * np.sin(two_n_pi * t[p] / T) - dp_prev[0] * np.sin(
-                two_n_pi * tp_prev / T)) / T
+                d[p, 0] * np.sin(two_n_pi * t[p] / T) - dp_prev[0] * np.sin(
+            two_n_pi * tp_prev / T)) / T
         sigma_a += q_x * (np.cos(two_n_pi * t[p] / T) - np.cos(
             two_n_pi * tp_prev / T))
         sigma_b -= two_n_pi * (
-                    d[p, 0] * np.cos(two_n_pi * t[p] / T) - dp_prev[0] * np.cos(
-                two_n_pi * tp_prev / T)) / T
+                d[p, 0] * np.cos(two_n_pi * t[p] / T) - dp_prev[0] * np.cos(
+            two_n_pi * tp_prev / T)) / T
         sigma_b += q_x * (np.sin(two_n_pi * t[p] / T) - np.sin(
             two_n_pi * tp_prev / T))
         sigma_c += two_n_pi * (
-                    d[p, 1] * np.sin(two_n_pi * t[p] / T) - dp_prev[1] * np.sin(
-                two_n_pi * tp_prev / T)) / T
+                d[p, 1] * np.sin(two_n_pi * t[p] / T) - dp_prev[1] * np.sin(
+            two_n_pi * tp_prev / T)) / T
         sigma_c += q_y * (np.cos(two_n_pi * t[p] / T) - np.cos(
             two_n_pi * tp_prev / T))
         sigma_d -= two_n_pi * (
-                    d[p, 1] * np.cos(two_n_pi * t[p] / T) - dp_prev[1] * np.cos(
-                two_n_pi * tp_prev / T)) / T
+                d[p, 1] * np.cos(two_n_pi * t[p] / T) - dp_prev[1] * np.cos(
+            two_n_pi * tp_prev / T)) / T
         sigma_d += q_y * (np.sin(two_n_pi * t[p] / T) - np.sin(
             two_n_pi * tp_prev / T))
 
@@ -831,160 +738,75 @@ def calc_dc_components_modify(ai, mode):
     return A0, C0, Tk, T
 
 
-def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
-    a = np.zeros(n)
-    b = np.zeros(n)
-    c = np.zeros(n)
-    d = np.zeros(n)
+def chain_code(img_file: Path):
+    # read color images and convert to gray
+    img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
+    img_result = np.zeros_like(img)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # find contours
+    contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        log.error('Cannot find boundary in the image file')
+        return None
+    max_contour = max(contours, key=cv2.contourArea)
+    max_contour = np.reshape(max_contour, (
+    max_contour.shape[0], max_contour.shape[2]))
+    log.debug(f'{max_contour[0][0]=}')
+    log.info(f'Image size: {img.shape}')
+    cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
+    # cv2.imshow('result_image',result_image)
 
-    for i in range(n):
-        # print(ai.shape)
-        harmonic_coeff = calc_harmonic_coefficients_modify(ai, i + 1, 0)
-        a[i] = harmonic_coeff[0]
-        b[i] = harmonic_coeff[1]
-        c[i] = harmonic_coeff[2]
-        d[i] = harmonic_coeff[3]
+    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
+    boundary = max_contour
+    chaincode, oringin = gui_chain_code_func(img_result, max_contour[0])
+    log.debug(f'Chaincode shape: {chaincode.shape}')
+    if len(chaincode) == 0:
+        log.error('Cannot generate chain code from the image')
+        return None
 
-    A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
-    # print(A0)
-    # print(C0)
-    # print(Tk)
-    # print(T)
+    log.debug(f'{boundary=}')
+    # Draw green line for boundary
+    cv2.polylines(img_result, boundary, isClosed=True, color=(0, 255, 0),
+                  thickness=3)
 
-    # Normalization procedure
-    if normalized:
-        ro = option[0]
-        sc = option[1]
-        re = option[2]
-        y_sy = option[3]
-        x_sy = option[4]
-        sta = option[5]
-        trans = option[6]
+    x_ = calc_traversal_dist(chaincode)
+    x = np.vstack(([0, 0], x_))
+    # print(x)
 
-        # Remove DC components
-        if trans:
-            A0 = 0
-            C0 = 0
+    # Draw red line for chain code traversal
+    cv2.polylines(img_result, x, isClosed=True, color=(0, 0, 255),
+                  thickness=3)
+    is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
-        if re:
-            CrossProduct = a[0] * d[0] - c[0] * b[0]
-            if CrossProduct < 0:
-                b = -b
-                d = -d
-
-        tan_theta2 = 2 * (a[0] * b[0] + c[0] * d[0]) / (
-                    a[0] ** 2 + c[0] ** 2 - b[0] ** 2 - d[0] ** 2)
-        theta1 = 0.5 * np.arctan(tan_theta2)
-        if theta1 < 0:
-            theta1 += np.pi / 2
-        sin_2theta = np.sin(2 * theta1)
-        cos_2theta = np.cos(2 * theta1)
-        cos_theta_square = (1 + cos_2theta) / 2
-        sin_theta_square = (1 - cos_2theta) / 2
-
-        axis_theta1 = (a[0] ** 2 + c[0] ** 2) * cos_theta_square + (
-                    a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
-                                  b[0] ** 2 + d[0] ** 2) * sin_theta_square
-        axis_theta2 = (a[0] ** 2 + c[0] ** 2) * sin_theta_square - (
-                    a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
-                                  b[0] ** 2 + d[0] ** 2) * cos_theta_square
-
-        # print(axis_theta1)
-        # print(axis_theta2)
-
-        if axis_theta1 < axis_theta2:
-            theta1 += np.pi / 2
-
-        costh1 = np.cos(theta1)
-        sinth1 = np.sin(theta1)
-        a_star_1 = costh1 * a[0] + sinth1 * b[0]
-        c_star_1 = costh1 * c[0] + sinth1 * d[0]
-        psi1 = np.arctan(c_star_1 / a_star_1)
-        if psi1 < 0:
-            psi1 += np.pi
-
-        E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
-        # print(E)
-
-        if sc:
-            a /= E
-            b /= E
-            c /= E
-            d /= E
-
-        cospsi1 = np.cos(psi1)
-        sinpsi1 = np.sin(psi1)
-        normalized_all = np.zeros((n, 4))
-
-        if ro:
-            for i in range(n):
-                normalized = np.dot([[cospsi1, sinpsi1], [-sinpsi1, cospsi1]],
-                                    [[a[i], b[i]], [c[i], d[i]]])
-                # print(normalized.reshape(1, 4))
-                normalized_all[i] = normalized.reshape(1, 4)
-            a = normalized_all[:, 0]
-            b = normalized_all[:, 1]
-            c = normalized_all[:, 2]
-            d = normalized_all[:, 3]
-
-        normalized_all_1 = np.zeros((n, 4))
-        print(theta1)
-
-        if sta:
-            for i in range(n):
-                normalized_1 = np.dot([[a[i], b[i]], [c[i], d[i]]], [
-                    [np.cos(theta1 * (i + 1)), -np.sin(theta1 * (i + 1))],
-                    [np.sin(theta1 * (i + 1)), np.cos(theta1 * (i + 1))]])
-                normalized_all_1[i, :] = normalized_1.reshape(1, 4)
-                # print(normalized_1)
-            a = normalized_all_1[:, 0]
-            b = normalized_all_1[:, 1]
-            c = normalized_all_1[:, 2]
-            d = normalized_all_1[:, 3]
-
-            if a[0] < 0:
-                a = -a
-                d = -d
-
-        if y_sy:
-            if a[1] < 0:
-                for i in range(1, n):
-                    signval = (-1) ** (((i + 1) % 2) + 1)
-                    a[i] = signval * a[i]
-                    d[i] = signval * d[i]
-                    signval = (-1) ** ((i + 1) % 2)
-                    b[i] = signval * b[i]
-                    c[i] = signval * c[i]
-
-        if x_sy:
-            if b[1] < 0:
-                b[1:] *= -1
-                c[1:] *= -1
-
-    # print(a)
-    # print(b)
-    # print(c)
-    # print(d)
-    output = np.zeros((m, 2))
-
-    for t in range(m):
-        x_ = 0.0
-        y_ = 0.0
-        for i in range(n):
-            x_ += (a[i] * np.cos(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T) +
-                   b[i] * np.sin(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T))
-            y_ += (c[i] * np.cos(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T) +
-                   d[i] * np.sin(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T))
-        output[t, 0] = A0 + x_
-        output[t, 1] = C0 + y_
-
-    return output, a, b, c, d
+    # todo: what is it?
+    # self.graphicsView_4.fitInView(self.graphicsView_4.sceneRect(),
+    #                               Qt.KeepAspectRatio)
+    # # Get the current transform
+    # transform = self.graphicsView_4.transform()
+    # # Apply the scale transformation
+    # transform.scale(7, 7)
+    # self.graphicsView_4.setTransform(transform)
+    # # Center the view on the specified point
+    # self.graphicsView_4.centerOn(QPointF(endpoint[1], endpoint[0]))
+    if not is_closed:
+        log.error(f'Chain code is not closed')
+        log.error(f'Chain code length: {chaincode.shape[0]}')
+    else:
+        log.debug(f'Chain code is closed')
+        log.debug(f'{chaincode=}')
+        log.debug(f'{chaincode.shape=}')
+        # self.pushButton_9.setEnabled(True)
+        # self.pushButton_10.setEnabled(True)
+        # self.pushButton_17.setEnabled(True)
+    cal_hs()
+    plot_hs()
+    return chaincode, img_file, id_full
 
 
 def main():
     img_file = Path(argv[1])
     a = chain_code(img_file)
-    b = EFA(a)
 
 
 if __name__ == '__main__':
