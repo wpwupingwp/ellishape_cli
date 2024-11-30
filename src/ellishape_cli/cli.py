@@ -260,13 +260,13 @@ def gui_chain_code_func(axis_info, origin_ori):
             backwordflag = False
 
     chain_code = chain_code_ori[:numofpoints]
-    log.debug(f'{chain_code}')
+    log.debug(f'{chain_code_ori=} {chain_code_ori.shape=}')
+    log.debug(f'{chain_code=} {chain_code.shape=}')
     # endpoint = backword_points[0]
-    oringin = origin_ori
-    print(oringin)
+    origin = origin_ori
     # print(endpoint)
     # print((np.where(flags == 1)))
-    return chain_code, oringin
+    return chain_code, origin
 
 
 def calc_traversal_dist(ai):
@@ -294,8 +294,9 @@ def is_completed_chain_code(chain_code, start_point):
     for direction in chain_code:
         direction = direction % 8  # Ensure direction is within bounds
         end_point += code_axis_map[direction]
-    end_point = direction2code(chain_code, start_point)
+    # end_point = direction2code(chain_code, start_point)
     distance = np.sqrt(np.sum((np.array(start_point) - end_point) ** 2))
+    log.debug(f'{distance=}')
     is_closed = (distance <= close_threshold)
     return is_closed, end_point
 
@@ -600,6 +601,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # read color images and convert to gray
     # binary
     img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
+    log.info(f'Image size: {img.shape}')
     img_result = np.zeros_like(img, dtype=np.uint8)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # find contours
@@ -612,12 +614,12 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     max_contour = np.reshape(max_contour, (
         max_contour.shape[0], max_contour.shape[2]))
     log.debug(f'{max_contour[0][0]=}')
-    log.info(f'Image size: {img.shape}')
     cv2.drawContours(img_result, [max_contour], -1, (255, 255, 255),
                      thickness=1)
 
-    # max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    # todo: opencv needn't swap x and y?
+    cv2.imshow('a', img_result)
+    cv2.waitKey()
+    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
     boundary = max_contour
     chaincode, origin = gui_chain_code_func(gray, max_contour[0])
     log.debug(f'Chaincode shape: {chaincode.shape}')
@@ -625,11 +627,14 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
         log.error('Cannot generate chain code from the image')
         return None
 
-    log.debug(f'{boundary=}')
     # Draw green line for boundary
+    # todo: opencv needn't swap x and y?
+    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
     cv2.polylines(img_result, [boundary], isClosed=True, color=(0, 255, 0),
                   thickness=3)
 
+    cv2.imshow('b', img_result)
+    cv2.waitKey()
     x_ = calc_traversal_dist(chaincode)
     x = np.vstack(([0, 0], x_))
     # print(x)
@@ -638,6 +643,9 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     x = x.astype(np.int32)
     cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
                   thickness=3)
+    cv2.imshow('c', img_result)
+    cv2.waitKey()
+    log.debug(f'{boundary[0]=}')
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
     # todo: what is it?
