@@ -596,11 +596,11 @@ def calc_dc_components_modify(ai, mode):
     return A0, C0, Tk, T
 
 
-def get_chain_code(img_file: Path) -> (np.ndarray, np.ndarray):
+def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # read color images and convert to gray
     # binary
     img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
-    img_result = np.zeros_like(img)
+    img_result = np.zeros_like(img, dtype=np.uint8)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # find contours
     contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL,
@@ -616,9 +616,10 @@ def get_chain_code(img_file: Path) -> (np.ndarray, np.ndarray):
     cv2.drawContours(img_result, [max_contour], -1, (255, 255, 255),
                      thickness=1)
 
-    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
+    # max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
+    # todo: opencv needn't swap x and y?
     boundary = max_contour
-    chaincode, oringin = gui_chain_code_func(img_result, max_contour[0])
+    chaincode, origin = gui_chain_code_func(gray, max_contour[0])
     log.debug(f'Chaincode shape: {chaincode.shape}')
     if len(chaincode) == 0:
         log.error('Cannot generate chain code from the image')
@@ -626,7 +627,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray, np.ndarray):
 
     log.debug(f'{boundary=}')
     # Draw green line for boundary
-    cv2.polylines(img_result, boundary, isClosed=True, color=(0, 255, 0),
+    cv2.polylines(img_result, [boundary], isClosed=True, color=(0, 255, 0),
                   thickness=3)
 
     x_ = calc_traversal_dist(chaincode)
@@ -634,7 +635,8 @@ def get_chain_code(img_file: Path) -> (np.ndarray, np.ndarray):
     # print(x)
 
     # Draw red line for chain code traversal
-    cv2.polylines(img_result, x, isClosed=True, color=(0, 0, 255),
+    x = x.astype(np.int32)
+    cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
                   thickness=3)
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
@@ -651,6 +653,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray, np.ndarray):
     if not is_closed:
         log.error(f'Chain code is not closed')
         log.error(f'Chain code length: {chaincode.shape[0]}')
+        return None, None
     else:
         log.debug(f'Chain code is closed')
         log.debug(f'{chaincode=}')
@@ -769,6 +772,9 @@ def ellishape_cli():
         return -1
     n_harmonic = arg.n_harmonic
     chain_code_result, img_result = get_chain_code(img_file)
+    if chain_code_result is None:
+        log.error('Quit')
+        return -1
     out_file = calc_hs(chain_code_result, img_file, n_harmonic)
     if arg.out_image:
         out_img_file = plot_hs(chain_code_result, img_file, img_result, n_harmonic)
