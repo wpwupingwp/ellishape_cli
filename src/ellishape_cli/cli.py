@@ -310,10 +310,11 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
     for i in range(n):
         # print(ai.shape)
         harmonic_coeff = calc_harmonic_coefficients_modify(ai, i + 1, 0)
-        a[i] = harmonic_coeff[0]
-        b[i] = harmonic_coeff[1]
-        c[i] = harmonic_coeff[2]
-        d[i] = harmonic_coeff[3]
+        # remove numpy 1.25 DeprecationWarning
+        a[i] = harmonic_coeff[0][0]
+        b[i] = harmonic_coeff[1][0]
+        c[i] = harmonic_coeff[2][0]
+        d[i] = harmonic_coeff[3][0]
 
     A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
     log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
@@ -418,10 +419,6 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
                 b[1:] *= -1
                 c[1:] *= -1
 
-    # print(a)
-    # print(b)
-    # print(c)
-    # print(d)
     output = np.zeros((m, 2))
 
     for t in range(m):
@@ -432,8 +429,9 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
                    b[i] * np.sin(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T))
             y_ += (c[i] * np.cos(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T) +
                    d[i] * np.sin(2 * (i + 1) * np.pi * (t) * Tk / (m - 1) / T))
-        output[t, 0] = A0 + x_
-        output[t, 1] = C0 + y_
+        # remove numpy DeprecationWarning
+        output[t, 0] = np.array(A0 + x_).item()
+        output[t, 1] = np.array(C0 + y_).item()
 
     return output, a, b, c, d
 
@@ -541,8 +539,8 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
     b = r * sigma_b
     c = r * sigma_c
     d = r * sigma_d
+    return a, b, c, d
 
-    return [a, b, c, d]
 
 
 def calc_dc_components_modify(ai, mode):
@@ -637,7 +635,6 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
                   thickness=3)
 
     cv2.imshow('b', img_result)
-    cv2.waitKey()
     x_ = calc_traversal_dist(chaincode)
     x = np.vstack(([0, 0], x_))
     # print(x)
@@ -645,11 +642,12 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # Draw red line for chain code traversal
     x = x.astype(np.int32)
     # todo: bad line
-    log.debug(f'{x=}')
+    # log.debug(f'{x=}')
     cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
                   thickness=3)
     cv2.imshow('c', img_result)
-    cv2.waitKey()
+    # wait 1s
+    cv2.waitKey(1000)
     log.debug(f'{boundary[0]=}')
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
@@ -728,8 +726,8 @@ def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
     chain_points = code2axis(chain_code, contour_points)
     # draw blue line
     chain_points = chain_points.astype(np.int32)
-    log.debug(f'{chain_points.dtype=}')
-    log.debug(f'{chain_points=}')
+    # log.debug(f'{chain_points.dtype=}')
+    # log.debug(f'{chain_points=}')
     cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
 
     if n_harmonic > max_numofharmoinc:
