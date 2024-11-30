@@ -1,11 +1,10 @@
 #!/usr/bin/python3
+import csv
 from pathlib import Path
 from sys import argv
 
 import cv2
 import numpy as np
-import pandas as pd
-from matplotlib import pyplot as plt
 
 from global_vars import log
 
@@ -257,16 +256,16 @@ def is_completed_chain_code(chain_code, start_point):
     return is_closed, end_point
 
 
-def get_options(self):
-    # todo: what is option?
-    ro = self.checkBox_4.isChecked()
-    sc = self.checkBox_3.isChecked()
-    re = self.checkBox_2.isChecked()
-    y_sy = self.checkBox_6.isChecked()
-    x_sy = self.checkBox_7.isChecked()
-    sta = self.checkBox_5.isChecked()
-    trans = self.checkBox.isChecked()
-    option = [ro, sc, re, y_sy, x_sy, sta, trans]
+def get_options():
+    # options for normalization, open by default
+    ro = True
+    sc = True
+    re = True
+    y_sy = True
+    x_sy = True
+    sta = True
+    trans = True
+    option = (ro, sc, re, y_sy, x_sy, sta, trans)
     return option
 
 
@@ -285,11 +284,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
         d[i] = harmonic_coeff[3]
 
     A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
-    # print(A0)
-    # print(C0)
-    # print(Tk)
-    # print(T)
-
+    log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
     # Normalization procedure
     if normalized:
         ro = option[0]
@@ -418,20 +413,19 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
         output[t, 1] = C0 + y_
 
     return output, a, b, c, d
-def cal_hs(chaincode, filename, id_full, numofharmonic: int):
+
+
+def cal_hs(chaincode, filename: Path, numofharmonic: int):
     # todo: get options
-    self = dict()
-    circle = self.textEdit_2.toPlainText()
-    numofharmoinc = numofharmonic
     option = get_options()
 
     _, a, b, c, d = fourier_approx_norm_modify(
-        chaincode, numofharmoinc, 1000, 1, 0, option)
+        chaincode, numofharmonic, 1000, 1, 0, option)
 
     t = np.transpose([a, b, c, d])
     Hs = np.reshape(t, (1, -1))
     coffs = [["filepath"]]
-    cols = numofharmoinc * 4
+    cols = numofharmonic * 4
     matrix = []
     for col in range(1, cols + 1):
         letter = chr(ord('a') + (col - 1) % 4)
@@ -439,18 +433,20 @@ def cal_hs(chaincode, filename, id_full, numofharmonic: int):
         matrix.append(letter + number)
 
     coffs[0].extend(matrix)
-    coffs.append([f"{filename[:-4]}_{id_full}"])
+    coffs.append([filename.stem])
     coffs[1].extend(Hs.flatten().tolist())
 
-    # todo: replace with csv
-    df = pd.DataFrame(coffs)
-    # 或者使用 with 语句，确保在写入后关闭 workbook
-    with pd.ExcelWriter(
-            f"results/{filename[:-4]}_{id_full}_info.xlsx",
-            engine='openpyxl', mode='a',
-            if_sheet_exists='replace') as writer:
-        df.to_excel(writer, sheet_name='Sheet2', index=False, header=False)
-    return
+    with open(filename, 'a', encoding='utf-8', newline='') as out:
+        writer = csv.writer(out)
+        writer.writerows(coffs)
+    # df = pd.DataFrame(coffs)
+    # # 或者使用 with 语句，确保在写入后关闭 workbook
+    # with pd.ExcelWriter(
+    #         f"results/{filename[:-4]}_{id_full}_info.xlsx",
+    #         engine='openpyxl', mode='a',
+    #         if_sheet_exists='replace') as writer:
+    #     df.to_excel(writer, sheet_name='Sheet2', index=False, header=False)
+    return filename
 
 
 def plot_hs(chain_code, filename, id_full, numeofharmonic: int):
@@ -471,7 +467,7 @@ def plot_hs(chain_code, filename, id_full, numeofharmonic: int):
         log.error(f'{numofharmoinc=} must be less than {max_numofharmoinc=}')
         return
 
-    option = get_options(self)
+    option = get_options()
 
     x_, _, _, _, _ = fourier_approx_norm_modify(chain_code,
                                                 numofharmoinc, 400,
@@ -740,6 +736,7 @@ def calc_dc_components_modify(ai, mode):
 
 def chain_code(img_file: Path):
     # read color images and convert to gray
+    # binary
     img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
     img_result = np.zeros_like(img)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -801,10 +798,11 @@ def chain_code(img_file: Path):
         # self.pushButton_17.setEnabled(True)
     cal_hs()
     plot_hs()
-    return chaincode, img_file, id_full
+    return chaincode, img_file
 
 
 def main():
+    # one leaf per image
     img_file = Path(argv[1])
     a = chain_code(img_file)
 
