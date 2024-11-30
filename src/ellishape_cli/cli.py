@@ -386,7 +386,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
             d = normalized_all[:, 3]
 
         normalized_all_1 = np.zeros((n, 4))
-        print(theta1)
+        log.debug(f'{theta1=}')
 
         if sta:
             for i in range(n):
@@ -675,9 +675,8 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     return chaincode, img_result
 
 
-def calc_hs(chaincode, filename: Path, n_harmonic: int):
+def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
     # todo: get options
-    out_file = filename.with_suffix('.csv')
     option = get_options()
 
     _, a, b, c, d = fourier_approx_norm_modify(
@@ -694,7 +693,7 @@ def calc_hs(chaincode, filename: Path, n_harmonic: int):
         matrix.append(letter + number)
 
     coffs[0].extend(matrix)
-    coffs.append([filename.stem])
+    coffs.append([input_file.name])
     coffs[1].extend(Hs.flatten().tolist())
 
 
@@ -716,7 +715,7 @@ def calc_hs(chaincode, filename: Path, n_harmonic: int):
     return out_file
 
 
-def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
+def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
             n_harmonic: int) -> Path:
     # todo: max number?
     max_numofharmoinc = n_harmonic
@@ -769,9 +768,8 @@ def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
         x1, y1, x2, y2 = tmp
         cv2.line(canvas, (x1, y1), (x2, y2), (0, 255, 255), thickness=1)
     # save_hs
-    out_imgfile = filename.with_name(filename.stem + '-out.png')
-    cv2.imwrite(str(out_imgfile), canvas)
-    return out_imgfile
+    cv2.imwrite(str(out_img_file), canvas)
+    return out_img_file
 
 
 def parse_args():
@@ -780,31 +778,36 @@ def parse_args():
                       help='input grayscale image with white as leaf',
                       required=True)
     arg.add_argument('-n', '-n_harmonic', dest='n_harmonic',
-                      default=35,
+                      default=35, type=int,
                       help='number of harmonic rank')
     arg.add_argument('-out_image', action='store_true',
                       help='output result image')
+    arg.add_argument('-out', help='output csv file')
     return arg.parse_args()
 
 
 def ellishape_cli():
     # one leaf per image
     arg = parse_args()
-    img_file = Path(arg.input).absolute()
-    if not img_file.exists():
-        log.error(f'Input {img_file} does not exist')
+    arg.input = Path(arg.input).absolute()
+    if not arg.input.exists():
+        log.error(f'Input {arg.input} does not exist')
         return -1
     n_harmonic = arg.n_harmonic
-    chain_code_result, img_result = get_chain_code(img_file)
+    if arg.out is None:
+        arg.out = arg.input.parent / 'test.csv'
+
+    chain_code_result, img_result = get_chain_code(arg.input)
     if chain_code_result is None:
         log.error('Quit')
         return -1
-    out_file = calc_hs(chain_code_result, img_file, n_harmonic)
+    calc_hs(chain_code_result, arg.input, arg.out, n_harmonic)
     if arg.out_image:
         canvas = img_result
-        canvas = np.zeros([600, 600, 3])
-        out_img_file = plot_hs(chain_code_result, img_file, canvas, n_harmonic)
-        log.info(f'Output data: {out_file}')
+        out_img_file = arg.out.with_name(arg.out.stem + '-out.png')
+        out_img_file = plot_hs(chain_code_result, out_img_file, canvas,
+                               n_harmonic)
+        log.info(f'Output data: {arg.out}')
         log.info(f'Output image: {out_img_file}')
         log.info('Write: contour')
         log.info('Green: boundary')
