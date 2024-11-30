@@ -8,6 +8,61 @@ import numpy as np
 
 from global_vars import log
 
+code_axis_map = {
+    0: [0, 1],
+    1: [-1, 1],
+    2: [-1, 0],
+    3: [-1, -1],
+    4: [0, -1],
+    5: [1, -1],
+    6: [1, 0],
+    7: [1, 1]
+}
+# pixel direction
+axis_code_map = {
+    (1, 0): 0,
+    (1, 1): 1,
+    (0, 1): 2,
+    (-1, 1): 3,
+    (-1, 0): 4,
+    (-1, -1): 5,
+    (0, -1): 6,
+    (1, -1): 7
+}
+
+
+def get_options():
+    # options for normalization, open by default
+    ro = True
+    sc = True
+    re = True
+    y_sy = True
+    x_sy = True
+    sta = True
+    trans = True
+    option = (ro, sc, re, y_sy, x_sy, sta, trans)
+    return option
+
+
+def direction2code(chain_code: np.array, start_point: np.array):
+    end_point = np.array(start_point)
+    for direction in chain_code:
+        direction = direction % 8  # Ensure direction is within bounds
+        end_point += code_axis_map[direction]
+    return end_point
+
+
+def code2axis(chain_code, start_point):
+    axis = np.zeros((len(chain_code) + 1, 2))
+    axis[0, :] = start_point
+    end_point = start_point
+
+    for i, code in enumerate(chain_code, start=1):
+        direction = code % 8
+        end_point = np.add(end_point, code_axis_map[direction])
+        axis[i, :] = end_point
+    return axis
+
 
 def gui_chain_code_func(axis_info, origin_ori):
     nrow, ncol = axis_info.shape
@@ -235,38 +290,14 @@ def calc_traversal_dist(ai):
 
 def is_completed_chain_code(chain_code, start_point):
     close_threshold = 2
-    direction_vectors = np.array([
-        # todo: right?
-        [0, 1],  # 0: Up
-        [-1, 1],  # 1: Up-Left
-        [-1, 0],  # 2: Left
-        [-1, -1],  # 3: Down-Left
-        [0, -1],  # 4: Down
-        [1, -1],  # 5: Down-Right
-        [1, 0],  # 6: Right
-        [1, 1]  # 7: Up-Right
-    ])
     end_point = np.array(start_point)
     for direction in chain_code:
         direction = direction % 8  # Ensure direction is within bounds
-        end_point += direction_vectors[direction]
+        end_point += direction_map[direction]
+    end_point = direction2code(chain_code, start_point)
     distance = np.sqrt(np.sum((np.array(start_point) - end_point) ** 2))
-
     is_closed = (distance <= close_threshold)
     return is_closed, end_point
-
-
-def get_options():
-    # options for normalization, open by default
-    ro = True
-    sc = True
-    re = True
-    y_sy = True
-    x_sy = True
-    sta = True
-    trans = True
-    option = (ro, sc, re, y_sy, x_sy, sta, trans)
-    return option
 
 
 def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
@@ -287,19 +318,11 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
     log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
     # Normalization procedure
     if normalized:
-        ro = option[0]
-        sc = option[1]
-        re = option[2]
-        y_sy = option[3]
-        x_sy = option[4]
-        sta = option[5]
-        trans = option[6]
-
+        ro, sc, re, y_sy, x_sy, sta, trans = option
         # Remove DC components
         if trans:
             A0 = 0
             C0 = 0
-
         if re:
             CrossProduct = a[0] * d[0] - c[0] * b[0]
             if CrossProduct < 0:
@@ -325,7 +348,6 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
 
         # print(axis_theta1)
         # print(axis_theta2)
-
         if axis_theta1 < axis_theta2:
             theta1 += np.pi / 2
 
@@ -499,35 +521,6 @@ def plot_hs(chain_code, filename: Path, n_harmonic: int):
     return
 
 
-def code2axis(chain_code, start_point):
-    end_point = start_point
-    axis = np.zeros((len(chain_code) + 1, 2))
-    axis[0, :] = start_point
-    i = 0
-    for code in chain_code:
-        i = i + 1
-        direction = code % 8
-        if direction == 0:
-            end_point = np.add(end_point, [0, 1])
-        elif direction == 7:
-            end_point = np.add(end_point, [1, 1])
-        elif direction == 6:
-            end_point = np.add(end_point, [1, 0])
-        elif direction == 5:
-            end_point = np.add(end_point, [1, -1])
-        elif direction == 4:
-            end_point = np.add(end_point, [0, -1])
-        elif direction == 3:
-            end_point = np.add(end_point, [-1, -1])
-        elif direction == 2:
-            end_point = np.add(end_point, [-1, 0])
-        elif direction == 1:
-            end_point = np.add(end_point, [-1, 1])
-        # print(end_point)
-        axis[i, :] = end_point
-    return axis
-
-
 def calc_traversal_time(ai):
     t_ = 0
     if np.isscalar(ai):
@@ -552,23 +545,8 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
             return None
         else:
             if edist > 0:
-                vect = [-d[k - 1, 0], -d[k - 1, 1]]
-                if vect[0] == 1 and vect[1] == 0:
-                    ai = np.append(ai, 0)
-                elif vect[0] == 1 and vect[1] == 1:
-                    ai = np.append(ai, 1)
-                elif vect[0] == 0 and vect[1] == 1:
-                    ai = np.append(ai, 2)
-                elif vect[0] == -1 and vect[1] == 1:
-                    ai = np.append(ai, 3)
-                elif vect[0] == -1 and vect[1] == 0:
-                    ai = np.append(ai, 4)
-                elif vect[0] == -1 and vect[1] == -1:
-                    ai = np.append(ai, 5)
-                elif vect[0] == 0 and vect[1] == -1:
-                    ai = np.append(ai, 6)
-                elif vect[0] == 1 and vect[1] == -1:
-                    ai = np.append(ai, 7)
+                vect = (-d[k - 1, 0], -d[k - 1, 1])
+                ai = np.append(ai, axis_code_map[vect])
 
     elif mode == 1:
         if d[k - 1, 0] != 0:
@@ -663,23 +641,8 @@ def calc_dc_components_modify(ai, mode):
             return None, None, None, None
         else:
             if edist > 0:
-                vect = [-d[k - 1, 0], -d[k - 1, 1]]
-                if vect[0] == 1 and vect[1] == 0:
-                    ai = np.append(ai, 0)
-                elif vect[0] == 1 and vect[1] == 1:
-                    ai = np.append(ai, 1)
-                elif vect[0] == 0 and vect[1] == 1:
-                    ai = np.append(ai, 2)
-                elif vect[0] == -1 and vect[1] == 1:
-                    ai = np.append(ai, 3)
-                elif vect[0] == -1 and vect[1] == 0:
-                    ai = np.append(ai, 4)
-                elif vect[0] == -1 and vect[1] == -1:
-                    ai = np.append(ai, 5)
-                elif vect[0] == 0 and vect[1] == -1:
-                    ai = np.append(ai, 6)
-                elif vect[0] == 1 and vect[1] == -1:
-                    ai = np.append(ai, 7)
+                vect = (-d[k - 1, 0], -d[k - 1, 1])
+                ai = np.append(ai, axis_code_map[vect])
 
     elif mode == 1:
         if d[k - 1, 0] != 0:
@@ -779,8 +742,6 @@ def chain_code(img_file: Path):
         # self.pushButton_9.setEnabled(True)
         # self.pushButton_10.setEnabled(True)
         # self.pushButton_17.setEnabled(True)
-    cal_hs()
-    plot_hs()
     return chaincode, img_file
 
 
@@ -788,6 +749,8 @@ def main():
     # one leaf per image
     img_file = Path(argv[1])
     a = chain_code(img_file)
+    cal_hs()
+    plot_hs()
 
 
 if __name__ == '__main__':
