@@ -760,7 +760,7 @@ def parse_args():
     return arg.parse_args()
 
 
-def main():
+def ellishape_cli():
     # one leaf per image
     arg = parse_args()
     img_file = Path(arg.input).absolute()
@@ -783,4 +783,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    ellishape_cli()

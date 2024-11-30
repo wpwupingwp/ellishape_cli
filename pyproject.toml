@@ -7,18 +7,10 @@ authors = [
 ]
 dependencies = [
     "opencv-python>=4.10.0.84",
-    "pandas>=2.2.3",
-    "matplotlib>=3.9.2",
-    "pyqt5>=5.15.11",
-    "segment-anything>=1.0",
-    "torch>=2.5.1",
-    "torchvision>=0.20.1",
-    "scipy>=1.14.1",
-    "openpyxl>=3.1.5",
     "loguru>=0.7.2",
 ]
 readme = "README.md"
-requires-python = ">= 3.7"
+requires-python = ">= 3.10"
 license = {text = "MIT"}
 
 classifiers = [
