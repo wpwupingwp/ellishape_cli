@@ -289,12 +289,12 @@ def calc_traversal_dist(ai):
 
 
 def is_completed_chain_code(chain_code, start_point):
+    # todo: why 2
     close_threshold = 2
     end_point = np.array(start_point)
     for direction in chain_code:
         direction = direction % 8  # Ensure direction is within bounds
         end_point += code_axis_map[direction]
-    # end_point = direction2code(chain_code, start_point)
     distance = np.sqrt(np.sum((np.array(start_point) - end_point) ** 2))
     log.debug(f'{distance=}')
     is_closed = (distance <= close_threshold)
@@ -459,7 +459,7 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
         edist = d[k - 1, 0] ** 2 + d[k - 1, 1] ** 2
         if edist > 2:
             log.error('error chaincode, not close form')
-            return None
+            raise SystemExit(-1)
         else:
             if edist > 0:
                 vect = (-d[k - 1, 0], -d[k - 1, 1])
@@ -641,6 +641,8 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
 
     # Draw red line for chain code traversal
     x = x.astype(np.int32)
+    # todo: bad line
+    log.debug(f'{x=}')
     cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
                   thickness=3)
     cv2.imshow('c', img_result)
@@ -722,6 +724,9 @@ def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
     contour_points = np.array([0, 0])
     chain_points = code2axis(chain_code, contour_points)
     # draw blue line
+    chain_points = chain_points.astype(np.int32)
+    log.debug(f'{chain_points.dtype=}')
+    log.debug(f'{chain_points=}')
     cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
 
     if n_harmonic > max_numofharmoinc:
@@ -741,6 +746,8 @@ def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
 
         x2 = chain_points_approx[i + 1, 0] + contour_points[0]
         y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+        tmp = np.array([x1, y1, x2, y2], dtype=np.int32)
+        x1, y1, x2, y2 = tmp
         cv2.line(canvas, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
 
     chain_points_approx2, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400,
@@ -751,6 +758,8 @@ def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
 
         x2 = chain_points_approx[i + 1, 0] + contour_points[0]
         y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+        tmp = np.array([x1, y1, x2, y2], dtype=np.int32)
+        x1, y1, x2, y2 = tmp
         cv2.line(canvas, (x1, y1), (x2, y2), (0, 255, 255), thickness=1)
     # save_hs
     out_imgfile = filename.with_name(filename.stem + '-out.png')
