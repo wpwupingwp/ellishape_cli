@@ -697,9 +697,15 @@ def calc_hs(chaincode, filename: Path, n_harmonic: int):
     coffs.append([filename.stem])
     coffs[1].extend(Hs.flatten().tolist())
 
-    with open(out_file, 'a', encoding='utf-8', newline='') as out:
-        writer = csv.writer(out)
-        writer.writerows(coffs)
+
+    if out_file.exists():
+        with open(out_file, 'a', encoding='utf-8', newline='') as out:
+            writer = csv.writer(out)
+            writer.writerows(coffs[1:])
+    else:
+        with open(out_file, 'a', encoding='utf-8', newline='') as out:
+            writer = csv.writer(out)
+            writer.writerows(coffs)
     # df = pd.DataFrame(coffs)
     # # 或者使用 with 语句，确保在写入后关闭 workbook
     # with pd.ExcelWriter(
