@@ -1,7 +1,7 @@
 #!/usr/bin/python3
+import argparse
 import csv
 from pathlib import Path
-from sys import argv
 
 import cv2
 import numpy as np
@@ -747,20 +747,39 @@ def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
     return out_imgfile
 
 
+def parse_args():
+    arg = argparse.ArgumentParser(description='ElliShape cli')
+    arg.add_argument('-i', '-input', dest='input',
+                      help='input grayscale image with white as leaf',
+                      required=True)
+    arg.add_argument('-n', '-n_harmonic', dest='n_harmonic',
+                      default=35,
+                      help='number of harmonic rank')
+    arg.add_argument('-out_image', action='store_true',
+                      help='output result image')
+    return arg.parse_args()
+
+
 def main():
     # one leaf per image
-    n_harmonic = 35
-    img_file = Path(argv[1]).absolute()
+    arg = parse_args()
+    img_file = Path(arg.input).absolute()
+    if not img_file.exists():
+        log.error(f'Input {img_file} does not exist')
+        return -1
+    n_harmonic = arg.n_harmonic
     chain_code_result, img_result = get_chain_code(img_file)
     out_file = calc_hs(chain_code_result, img_file, n_harmonic)
-    out_img_file = plot_hs(chain_code_result, img_file, img_result, n_harmonic)
-    log.info(f'Output data: {out_file}')
-    log.info(f'Output image: {out_img_file}')
-    log.info('Write: contour')
-    log.info('Green: boundary')
-    log.info('Blue: chain code')
-    log.info('Red: chain code approximate')
-    log.info('Yellow: chain code approximate with normalization')
+    if arg.out_image:
+        out_img_file = plot_hs(chain_code_result, img_file, img_result, n_harmonic)
+        log.info(f'Output data: {out_file}')
+        log.info(f'Output image: {out_img_file}')
+        log.info('Write: contour')
+        log.info('Green: boundary')
+        log.info('Blue: chain code')
+        log.info('Red: chain code approximate')
+        log.info('Yellow: chain code approximate with normalization')
+    log.info('Done')
 
 
 if __name__ == '__main__':
