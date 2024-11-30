@@ -293,7 +293,7 @@ def is_completed_chain_code(chain_code, start_point):
     end_point = np.array(start_point)
     for direction in chain_code:
         direction = direction % 8  # Ensure direction is within bounds
-        end_point += direction_map[direction]
+        end_point += code_axis_map[direction]
     end_point = direction2code(chain_code, start_point)
     distance = np.sqrt(np.sum((np.array(start_point) - end_point) ** 2))
     is_closed = (distance <= close_threshold)
@@ -435,90 +435,6 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
         output[t, 1] = C0 + y_
 
     return output, a, b, c, d
-
-
-def cal_hs(chaincode, filename: Path, numofharmonic: int):
-    # todo: get options
-    option = get_options()
-
-    _, a, b, c, d = fourier_approx_norm_modify(
-        chaincode, numofharmonic, 1000, 1, 0, option)
-
-    t = np.transpose([a, b, c, d])
-    Hs = np.reshape(t, (1, -1))
-    coffs = [["filepath"]]
-    cols = numofharmonic * 4
-    matrix = []
-    for col in range(1, cols + 1):
-        letter = chr(ord('a') + (col - 1) % 4)
-        number = str((col - 1) // 4 + 1)
-        matrix.append(letter + number)
-
-    coffs[0].extend(matrix)
-    coffs.append([filename.stem])
-    coffs[1].extend(Hs.flatten().tolist())
-
-    with open(filename, 'a', encoding='utf-8', newline='') as out:
-        writer = csv.writer(out)
-        writer.writerows(coffs)
-    # df = pd.DataFrame(coffs)
-    # # 或者使用 with 语句，确保在写入后关闭 workbook
-    # with pd.ExcelWriter(
-    #         f"results/{filename[:-4]}_{id_full}_info.xlsx",
-    #         engine='openpyxl', mode='a',
-    #         if_sheet_exists='replace') as writer:
-    #     df.to_excel(writer, sheet_name='Sheet2', index=False, header=False)
-    return filename
-
-
-def plot_hs(chain_code, filename: Path, n_harmonic: int):
-    # todo: max number?
-    max_numofharmoinc = n_harmonic
-    mode = 0
-    # todo: figure size?
-    height, width = 1024, 1024
-    if chain_code.size == 0:
-        log.error(f'Empty chain code')
-        return
-    contour_points = np.array([0, 0])
-    chain_points = code2axis(chain_code, contour_points)
-    # draw blue line
-    canvas1 = np.zeros((height, width, 3))
-    canvas2 = np.copy(canvas1)
-    cv2.polylines(canvas1, [chain_points], False, (255, 0, 0), 2)
-
-    if n_harmonic > max_numofharmoinc:
-        log.error(f'{n_harmonic=} must be less than {max_numofharmoinc=}')
-        return
-
-    option = get_options()
-
-    x_, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400, 0, mode, option)
-    chain_points_approx = np.vstack((x_, x_[0, :]))
-    # print(chain_points_approx)
-
-    # todo: ???
-    for i in range(len(chain_points_approx) - 1):
-        x1 = chain_points_approx[i, 0] + contour_points[0]
-        y1 = contour_points[1] - chain_points_approx[i, 1]
-
-        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
-        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
-        cv2.line(canvas1, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
-
-    chain_points_approx2, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400,
-                                                1, mode, option)
-    for i in range(len(chain_points_approx2) - 1):
-        x1 = chain_points_approx[i, 0] + contour_points[0]
-        y1 = contour_points[1] - chain_points_approx[i, 1]
-
-        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
-        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
-        cv2.line(canvas2, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
-    # save_hs
-    cv2.imwrite(str(filename.with_name(filename.stem + '-1.png')), canvas1)
-    cv2.imwrite(str(filename.with_name(filename.stem + '-2.png')), canvas2)
-    return
 
 
 def calc_traversal_time(ai):
@@ -680,7 +596,7 @@ def calc_dc_components_modify(ai, mode):
     return A0, C0, Tk, T
 
 
-def chain_code(img_file: Path):
+def get_chain_code(img_file: Path) -> (np.ndarray, np.ndarray):
     # read color images and convert to gray
     # binary
     img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
@@ -697,8 +613,8 @@ def chain_code(img_file: Path):
         max_contour.shape[0], max_contour.shape[2]))
     log.debug(f'{max_contour[0][0]=}')
     log.info(f'Image size: {img.shape}')
-    cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
-    # cv2.imshow('result_image',result_image)
+    cv2.drawContours(img_result, [max_contour], -1, (255, 255, 255),
+                     thickness=1)
 
     max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
     boundary = max_contour
@@ -742,15 +658,109 @@ def chain_code(img_file: Path):
         # self.pushButton_9.setEnabled(True)
         # self.pushButton_10.setEnabled(True)
         # self.pushButton_17.setEnabled(True)
-    return chaincode, img_file
+    return chaincode, img_result
+
+
+def calc_hs(chaincode, filename: Path, n_harmonic: int):
+    # todo: get options
+    out_file = filename.with_suffix('.csv')
+    option = get_options()
+
+    _, a, b, c, d = fourier_approx_norm_modify(
+        chaincode, n_harmonic, 1000, 1, 0, option)
+
+    t = np.transpose([a, b, c, d])
+    Hs = np.reshape(t, (1, -1))
+    coffs = [["filepath"]]
+    cols = n_harmonic * 4
+    matrix = []
+    for col in range(1, cols + 1):
+        letter = chr(ord('a') + (col - 1) % 4)
+        number = str((col - 1) // 4 + 1)
+        matrix.append(letter + number)
+
+    coffs[0].extend(matrix)
+    coffs.append([filename.stem])
+    coffs[1].extend(Hs.flatten().tolist())
+
+    with open(out_file, 'a', encoding='utf-8', newline='') as out:
+        writer = csv.writer(out)
+        writer.writerows(coffs)
+    # df = pd.DataFrame(coffs)
+    # # 或者使用 with 语句，确保在写入后关闭 workbook
+    # with pd.ExcelWriter(
+    #         f"results/{filename[:-4]}_{id_full}_info.xlsx",
+    #         engine='openpyxl', mode='a',
+    #         if_sheet_exists='replace') as writer:
+    #     df.to_excel(writer, sheet_name='Sheet2', index=False, header=False)
+    return out_file
+
+
+def plot_hs(chain_code: np.ndarray, filename: Path, canvas: np.ndarray,
+            n_harmonic: int) -> Path:
+    # todo: max number?
+    max_numofharmoinc = n_harmonic
+    mode = 0
+    # todo: figure size?
+    # height, width = 1024, 1024
+    # canvas1 = np.zeros((height, width, 3))
+    # canvas2 = np.copy(canvas1)
+    if chain_code.size == 0:
+        log.error(f'Empty chain code')
+        return Path()
+    contour_points = np.array([0, 0])
+    chain_points = code2axis(chain_code, contour_points)
+    # draw blue line
+    cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
+
+    if n_harmonic > max_numofharmoinc:
+        log.error(f'{n_harmonic=} must be less than {max_numofharmoinc=}')
+        return Path()
+
+    option = get_options()
+
+    x_, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400, 0, mode, option)
+    chain_points_approx = np.vstack((x_, x_[0, :]))
+    # print(chain_points_approx)
+
+    # todo: ???
+    for i in range(len(chain_points_approx) - 1):
+        x1 = chain_points_approx[i, 0] + contour_points[0]
+        y1 = contour_points[1] - chain_points_approx[i, 1]
+
+        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
+        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+        cv2.line(canvas, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
+
+    chain_points_approx2, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400,
+                                                           1, mode, option)
+    for i in range(len(chain_points_approx2) - 1):
+        x1 = chain_points_approx[i, 0] + contour_points[0]
+        y1 = contour_points[1] - chain_points_approx[i, 1]
+
+        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
+        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+        cv2.line(canvas, (x1, y1), (x2, y2), (0, 255, 255), thickness=1)
+    # save_hs
+    out_imgfile = filename.with_name(filename.stem + '-out.png')
+    cv2.imwrite(str(out_imgfile), canvas)
+    return out_imgfile
 
 
 def main():
     # one leaf per image
-    img_file = Path(argv[1])
-    a = chain_code(img_file)
-    cal_hs()
-    plot_hs()
+    n_harmonic = 35
+    img_file = Path(argv[1]).absolute()
+    chain_code_result, img_result = get_chain_code(img_file)
+    out_file = calc_hs(chain_code_result, img_file, n_harmonic)
+    out_img_file = plot_hs(chain_code_result, img_file, img_result, n_harmonic)
+    log.info(f'Output data: {out_file}')
+    log.info(f'Output image: {out_img_file}')
+    log.info('Write: contour')
+    log.info('Green: boundary')
+    log.info('Blue: chain code')
+    log.info('Red: chain code approximate')
+    log.info('Yellow: chain code approximate with normalization')
 
 
 if __name__ == '__main__':
