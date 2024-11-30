@@ -601,11 +601,14 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # read color images and convert to gray
     # binary
     img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
+    # todo: resize?
+    # img = cv2.resize(img, None, fx=0.125, fy=0.125)
     log.info(f'Image size: {img.shape}')
     img_result = np.zeros_like(img, dtype=np.uint8)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # find contours
-    contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL,
+    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL,
                                    cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         log.error('Cannot find boundary in the image file')
@@ -618,7 +621,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
                      thickness=1)
 
     cv2.imshow('a', img_result)
-    cv2.waitKey()
+    cv2.imshow('gray', gray)
     max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
     boundary = max_contour
     chaincode, origin = gui_chain_code_func(gray, max_contour[0])
@@ -794,7 +797,9 @@ def ellishape_cli():
         return -1
     out_file = calc_hs(chain_code_result, img_file, n_harmonic)
     if arg.out_image:
-        out_img_file = plot_hs(chain_code_result, img_file, img_result, n_harmonic)
+        canvas = img_result
+        canvas = np.zeros([600, 600, 3])
+        out_img_file = plot_hs(chain_code_result, img_file, canvas, n_harmonic)
         log.info(f'Output data: {out_file}')
         log.info(f'Output image: {out_img_file}')
         log.info('Write: contour')
