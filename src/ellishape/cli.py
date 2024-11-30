@@ -238,13 +238,13 @@ def is_completed_chain_code(chain_code, start_point):
     direction_vectors = np.array([
         # todo: right?
         [0, 1],  # 0: Up
-        [-1, 1], # 1: Up-Left
-        [-1, 0], # 2: Left
-        [-1, -1],# 3: Down-Left
-        [0, -1], # 4: Down
-        [1, -1], # 5: Down-Right
+        [-1, 1],  # 1: Up-Left
+        [-1, 0],  # 2: Left
+        [-1, -1],  # 3: Down-Left
+        [0, -1],  # 4: Down
+        [1, -1],  # 5: Down-Right
         [1, 0],  # 6: Right
-        [1, 1]   # 7: Up-Right
+        [1, 1]  # 7: Up-Right
     ])
     end_point = np.array(start_point)
     for direction in chain_code:
@@ -449,29 +449,29 @@ def cal_hs(chaincode, filename: Path, numofharmonic: int):
     return filename
 
 
-def plot_hs(chain_code, filename, id_full, numeofharmonic: int):
-    max_numofharmoinc = int(self.textEdit.toPlainText())
+def plot_hs(chain_code, filename: Path, n_harmonic: int):
+    # todo: max number?
+    max_numofharmoinc = n_harmonic
     mode = 0
-
+    # todo: figure size?
+    height, width = 1024, 1024
     if chain_code.size == 0:
         log.error(f'Empty chain code')
         return
     contour_points = np.array([0, 0])
     chain_points = code2axis(chain_code, contour_points)
     # draw blue line
-    img = np.zeros((width, height, 3))
-    cv2.polylines(img, [chain_points], False, (255, 0, 0), 2)
+    canvas1 = np.zeros((height, width, 3))
+    canvas2 = np.copy(canvas1)
+    cv2.polylines(canvas1, [chain_points], False, (255, 0, 0), 2)
 
-    numofharmoinc = numeofharmonic
-    if numofharmoinc > max_numofharmoinc:
-        log.error(f'{numofharmoinc=} must be less than {max_numofharmoinc=}')
+    if n_harmonic > max_numofharmoinc:
+        log.error(f'{n_harmonic=} must be less than {max_numofharmoinc=}')
         return
 
     option = get_options()
 
-    x_, _, _, _, _ = fourier_approx_norm_modify(chain_code,
-                                                numofharmoinc, 400,
-                                                0, mode, option)
+    x_, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400, 0, mode, option)
     chain_points_approx = np.vstack((x_, x_[0, :]))
     # print(chain_points_approx)
 
@@ -482,66 +482,49 @@ def plot_hs(chain_code, filename, id_full, numeofharmonic: int):
 
         x2 = chain_points_approx[i + 1, 0] + contour_points[0]
         y2 = contour_points[1] - chain_points_approx[i + 1, 1]
+        cv2.line(canvas1, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
 
-        line = QGraphicsLineItem(y1, x1, y2, x2)
-        line.setPen(QPen(QColor(255, 0, 0)))
-        self.scene.addItem(line)
-    self.graphicsView.setScene(self.scene)
-    self.graphicsView.fitInView(self.graphicsView.sceneRect(),
-                                Qt.KeepAspectRatio)
-
-    x_, _, _, _, _ = fourier_approx_norm_modify(chain_code,
-                                                numofharmoinc, 400,
+    chain_points_approx2, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400,
                                                 1, mode, option)
-    chain_points_approx = x_
-    for i in range(len(chain_points_approx) - 1):
+    for i in range(len(chain_points_approx2) - 1):
         x1 = chain_points_approx[i, 0] + contour_points[0]
         y1 = contour_points[1] - chain_points_approx[i, 1]
 
         x2 = chain_points_approx[i + 1, 0] + contour_points[0]
         y2 = contour_points[1] - chain_points_approx[i + 1, 1]
-
-        line = QGraphicsLineItem(y1, x1, y2, x2)
-        line.setPen(QPen(QColor(255, 0, 0), 0.01))
-
-        self.scene_1.addItem(line)
-        self.scene_1.setSceneRect(self.scene_1.itemsBoundingRect())
-
-    self.graphicsView_2.setScene(self.scene_1)
-    self.graphicsView_2.fitInView(self.graphicsView_2.sceneRect(),
-                                  Qt.KeepAspectRatio)
-
+        cv2.line(canvas2, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
     # save_hs
-    cv2.imwrite(filename, hs_plot)
+    cv2.imwrite(str(filename.with_name(filename.stem + '-1.png')), canvas1)
+    cv2.imwrite(str(filename.with_name(filename.stem + '-2.png')), canvas2)
     return
 
 
 def code2axis(chain_code, start_point):
     end_point = start_point
-    axis=np.zeros((len(chain_code)+1,2))
-    axis[0,:]=start_point
-    i=0
+    axis = np.zeros((len(chain_code) + 1, 2))
+    axis[0, :] = start_point
+    i = 0
     for code in chain_code:
-        i=i+1
+        i = i + 1
         direction = code % 8
         if direction == 0:
-            end_point = np.add(end_point , [0, 1])
+            end_point = np.add(end_point, [0, 1])
         elif direction == 7:
-            end_point = np.add(end_point , [1, 1])
+            end_point = np.add(end_point, [1, 1])
         elif direction == 6:
-            end_point = np.add(end_point , [1, 0])
+            end_point = np.add(end_point, [1, 0])
         elif direction == 5:
-            end_point = np.add(end_point , [1, -1])
+            end_point = np.add(end_point, [1, -1])
         elif direction == 4:
-            end_point = np.add(end_point , [0, -1])
+            end_point = np.add(end_point, [0, -1])
         elif direction == 3:
-            end_point = np.add(end_point , [-1, -1])
+            end_point = np.add(end_point, [-1, -1])
         elif direction == 2:
-            end_point = np.add(end_point , [-1, 0])
+            end_point = np.add(end_point, [-1, 0])
         elif direction == 1:
-            end_point = np.add(end_point , [-1, 1])
+            end_point = np.add(end_point, [-1, 1])
         # print(end_point)
-        axis[i,:]=end_point
+        axis[i, :] = end_point
     return axis
 
 
@@ -565,7 +548,7 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
     if mode == 0:
         edist = d[k - 1, 0] ** 2 + d[k - 1, 1] ** 2
         if edist > 2:
-            print('error chaincode, not close form')
+            log.error('error chaincode, not close form')
             return None
         else:
             if edist > 0:
@@ -748,7 +731,7 @@ def chain_code(img_file: Path):
         return None
     max_contour = max(contours, key=cv2.contourArea)
     max_contour = np.reshape(max_contour, (
-    max_contour.shape[0], max_contour.shape[2]))
+        max_contour.shape[0], max_contour.shape[2]))
     log.debug(f'{max_contour[0][0]=}')
     log.info(f'Image size: {img.shape}')
     cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
