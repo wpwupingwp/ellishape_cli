@@ -12,53 +12,12 @@
 -e file:.
 colorama==0.4.6
     # via loguru
-filelock==3.16.1
-    # via torch
-fsspec==2024.10.0
-    # via torch
-jinja2==3.1.4
-    # via torch
 loguru==0.7.2
     # via ellishape-cli
-markupsafe==3.0.2
-    # via jinja2
-mpmath==1.3.0
-    # via sympy
-networkx==3.4.2
-    # via torch
 numpy==1.26.4
     # via ellishape-cli
     # via opencv-python
-    # via pandas
-    # via scipy
-    # via torchvision
 opencv-python==4.10.0.84
     # via ellishape-cli
-pandas==2.2.3
-pillow==11.0.0
-    # via torchvision
-pyqt5==5.15.11
-pyqt5-qt5==5.15.2
-    # via pyqt5
-pyqt5-sip==12.16.0
-    # via pyqt5
-python-dateutil==2.9.0.post0
-    # via pandas
-pytz==2024.2
-    # via pandas
-scipy==1.14.1
-setuptools==75.6.0
-    # via torch
-six==1.17.0
-    # via python-dateutil
-sympy==1.13.1
-    # via torch
-torch==2.5.1
-    # via torchvision
-torchvision==0.20.1
-typing-extensions==4.12.2
-    # via torch
-tzdata==2024.2
-    # via pandas
 win32-setctime==1.1.0
     # via loguru

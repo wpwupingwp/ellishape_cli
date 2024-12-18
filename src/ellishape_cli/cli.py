@@ -799,7 +799,7 @@ def ellishape_cli():
         return -1
     n_harmonic = arg.n_harmonic
     if arg.out is None:
-        arg.out = arg.input.parent / 'test.csv'
+        arg.out = arg.input.parent / 'out.csv'
 
     chain_code_result, img_result = get_chain_code(arg.input)
     if chain_code_result is None:

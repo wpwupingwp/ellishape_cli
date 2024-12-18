@@ -1,7 +1,7 @@
 [project]
 name = "ellishape-cli"
-version = "1.0.0"
-description = "Add your description here"
+version = "1.0.2"
+description = "Command-line version of ellishape"
 authors = [
     { name = "Sally yang", email = "2500876951@qq.com" },
     { name = "Ping Wu", email = "wpwupingwp@outlook.com" },
@@ -12,7 +12,7 @@ dependencies = [
     "numpy<2.0",
 ]
 readme = "README.md"
-requires-python = ">= 3.10"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 
 classifiers = [
@@ -29,13 +29,6 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = [
-    "torch>=2.5.1",
-    "torchvision>=0.20.1",
-    "scipy>=1.14.1",
-    "pandas>=2.2.3",
-    "pyqt5>=5.15.11",
-]
 
 [tool.hatch.metadata]
 allow-direct-references = true
