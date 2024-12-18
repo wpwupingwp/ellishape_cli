@@ -602,11 +602,10 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # todo: resize?
     # img = cv2.resize(img, None, fx=0.125, fy=0.125)
     log.info(f'Image size: {img.shape}')
-    gray2 = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # gray = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
     img_result = np.zeros_like(gray, dtype=np.uint8)
-    log.info(f'{gray2=}')
-    log.info(f'{gray=}')
+    log.debug(f'{gray=}')
     _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # find contours
     contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -716,13 +715,6 @@ def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
         with open(out_file, 'a', encoding='utf-8', newline='') as out:
             writer = csv.writer(out)
             writer.writerows(coffs)
-    # df = pd.DataFrame(coffs)
-    # # 或者使用 with 语句，确保在写入后关闭 workbook
-    # with pd.ExcelWriter(
-    #         f"results/{filename[:-4]}_{id_full}_info.xlsx",
-    #         engine='openpyxl', mode='a',
-    #         if_sheet_exists='replace') as writer:
-    #     df.to_excel(writer, sheet_name='Sheet2', index=False, header=False)
     return out_file
 
 
@@ -801,6 +793,7 @@ def ellishape_cli():
     # one leaf per image
     arg = parse_args()
     arg.input = Path(arg.input).absolute()
+    log.info(f'Input {arg.input}')
     if not arg.input.exists():
         log.error(f'Input {arg.input} does not exist')
         return -1
@@ -820,11 +813,11 @@ def ellishape_cli():
                                n_harmonic)
         log.info(f'Output data: {arg.out}')
         log.info(f'Output image: {out_img_file}')
-        log.info('Write: contour')
-        log.info('Green: boundary')
-        log.info('Blue: chain code')
-        log.info('Red: chain code approximate')
-        log.info('Yellow: chain code approximate with normalization')
+        log.debug('Write: contour')
+        log.debug('Green: boundary')
+        log.debug('Blue: chain code')
+        log.debug('Red: chain code approximate')
+        log.debug('Yellow: chain code approximate with normalization')
     log.info('Done')
 
 
