@@ -602,12 +602,15 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # todo: resize?
     # img = cv2.resize(img, None, fx=0.125, fy=0.125)
     log.info(f'Image size: {img.shape}')
-    img_result = np.zeros_like(img, dtype=np.uint8)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
+    img_result = np.zeros_like(gray, dtype=np.uint8)
+    log.info(f'{gray2=}')
+    log.info(f'{gray=}')
     _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # find contours
-    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL,
-                                   cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                                   # cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         log.error('Cannot find boundary in the image file')
         return None
@@ -615,14 +618,22 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     max_contour = np.reshape(max_contour, (
         max_contour.shape[0], max_contour.shape[2]))
     log.debug(f'{max_contour[0][0]=}')
-    cv2.drawContours(img_result, [max_contour], -1, (255, 255, 255),
+    log.debug(f'{max_contour.shape=}')
+    log.debug(f'{max_contour=}')
+    cv2.drawContours(img_result, [max_contour], -1, 255,
                      thickness=1)
 
-    cv2.imshow('a', img_result)
-    cv2.imshow('gray', gray)
+    # cv2.imshow('a', img_result)
+    # cv2.imshow('gray', gray)
     max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
+    log.debug(f'{max_contour[0][0]=}')
+    log.debug(f'{max_contour.shape=}')
+    log.debug(f'{max_contour=}')
     boundary = max_contour
-    chaincode, origin = gui_chain_code_func(gray, max_contour[0])
+    log.debug(f'{max_contour[0].shape}')
+    # chaincode, origin = gui_chain_code_func(gray, max_contour[0])
+    chaincode, origin = gui_chain_code_func(img_result, max_contour[0])
+    log.debug(f'{chaincode.shape=}')
     log.debug(f'Chaincode shape: {chaincode.shape}')
     if len(chaincode) == 0:
         log.error('Cannot generate chain code from the image')
@@ -634,7 +645,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     cv2.polylines(img_result, [boundary], isClosed=True, color=(0, 255, 0),
                   thickness=3)
 
-    cv2.imshow('b', img_result)
+    # cv2.imshow('b', img_result)
     x_ = calc_traversal_dist(chaincode)
     x = np.vstack(([0, 0], x_))
     # print(x)
@@ -645,9 +656,9 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # log.debug(f'{x=}')
     cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
                   thickness=3)
-    cv2.imshow('c', img_result)
+    # cv2.imshow('c', img_result)
     # wait 1s
-    cv2.waitKey(1000)
+    # cv2.waitKey(1000)
     log.debug(f'{boundary[0]=}')
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
