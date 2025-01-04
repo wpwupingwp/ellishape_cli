@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from global_vars import log
+from ellishape_cli.global_vars import log
 
 code_axis_map = {
     0: [0, 1],
@@ -789,7 +789,7 @@ def parse_args():
     return arg.parse_args()
 
 
-def ellishape_cli():
+def cli_main():
     # one leaf per image
     arg = parse_args()
     arg.input = Path(arg.input).absolute()
@@ -800,6 +800,8 @@ def ellishape_cli():
     n_harmonic = arg.n_harmonic
     if arg.out is None:
         arg.out = arg.input.parent / 'out.csv'
+    else:
+        arg.out = Path(arg.out).absolute()
 
     chain_code_result, img_result = get_chain_code(arg.input)
     if chain_code_result is None:
@@ -822,4 +824,4 @@ def ellishape_cli():
 
 
 if __name__ == '__main__':
-    ellishape_cli()
+    cli_main()

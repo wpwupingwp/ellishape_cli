@@ -10,8 +10,6 @@
 #   universal: false
 
 -e file:.
-colorama==0.4.6
-    # via loguru
 loguru==0.7.2
     # via ellishape-cli
 numpy==1.26.4
@@ -19,5 +17,3 @@ numpy==1.26.4
     # via opencv-python
 opencv-python==4.10.0.84
     # via ellishape-cli
-win32-setctime==1.1.0
-    # via loguru
