@@ -2,6 +2,7 @@
 import argparse
 import csv
 from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
 
 import cv2
 import numpy as np
@@ -303,23 +304,30 @@ def is_completed_chain_code(chain_code, start_point):
     return is_closed, end_point
 
 
+def compute_harmonic_coefficients(ai, harmonic_index):
+    return calc_harmonic_coefficients_modify(ai, harmonic_index+1, 0)
+
+
 @cached
 def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
+    EPS = 1e-10
     a = np.zeros(n)
     b = np.zeros(n)
     c = np.zeros(n)
     d = np.zeros(n)
 
-    for i in range(n):
-        # print(ai.shape)
-        harmonic_coeff = calc_harmonic_coefficients_modify(ai, i + 1, 0)
-        # remove numpy 1.25 DeprecationWarning
-        a[i] = harmonic_coeff[0][0]
-        b[i] = harmonic_coeff[1][0]
-        c[i] = harmonic_coeff[2][0]
-        d[i] = harmonic_coeff[3][0]
+    # parallel
+    with ProcessPoolExecutor() as executor:
+        results = list(executor.map(compute_harmonic_coefficients, [ai] * n, range(n)))
+
+    for i, harmonic_coeff in enumerate(results):
+        a[i] = harmonic_coeff[0].item()
+        b[i] = harmonic_coeff[1].item()
+        c[i] = harmonic_coeff[2].item()
+        d[i] = harmonic_coeff[3].item()
 
     A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
+
     log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
     # Normalization procedure
     if normalized:
@@ -328,6 +336,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
         if trans:
             A0 = 0
             C0 = 0
+
         if re:
             CrossProduct = a[0] * d[0] - c[0] * b[0]
             if CrossProduct < 0:
@@ -360,9 +369,14 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
         sinth1 = np.sin(theta1)
         a_star_1 = costh1 * a[0] + sinth1 * b[0]
         c_star_1 = costh1 * c[0] + sinth1 * d[0]
-        psi1 = np.arctan(c_star_1 / a_star_1)
-        if psi1 < 0:
-            psi1 += np.pi
+        psi1 = np.arctan(np.abs(c_star_1 / a_star_1))
+
+        if c_star_1 > 0 > a_star_1:
+            psi1 = np.pi - psi1
+        if c_star_1 < 0 and a_star_1 < 0:
+            psi1 = np.pi + psi1
+        if c_star_1 < 0 < a_star_1:
+            psi1 = np.pi * 2 - psi1
 
         E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
         # print(E)
@@ -389,7 +403,6 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
             d = normalized_all[:, 3]
 
         normalized_all_1 = np.zeros((n, 4))
-        log.debug(f'{theta1=}')
 
         if sta:
             for i in range(n):
@@ -418,7 +431,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
                     c[i] = signval * c[i]
 
         if x_sy:
-            if b[1] < 0:
+            if c[1] < -EPS:
                 b[1:] *= -1
                 c[1:] *= -1
 
