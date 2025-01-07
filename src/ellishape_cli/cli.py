@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from ellishape_cli.global_vars import log
+from memoization import cached
 
 code_axis_map = {
     0: [0, 1],
@@ -269,6 +270,7 @@ def gui_chain_code_func(axis_info, origin_ori):
     return chain_code, origin
 
 
+@cached
 def calc_traversal_dist(ai):
     x_ = 0
     y_ = 0
@@ -301,6 +303,7 @@ def is_completed_chain_code(chain_code, start_point):
     return is_closed, end_point
 
 
+@cached
 def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
     a = np.zeros(n)
     b = np.zeros(n)
@@ -436,6 +439,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
     return output, a, b, c, d
 
 
+@cached
 def calc_traversal_time(ai):
     t_ = 0
     if np.isscalar(ai):
@@ -688,9 +692,10 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
 def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
     # todo: get options
     option = get_options()
+    n_dots = 1000
 
     _, a, b, c, d = fourier_approx_norm_modify(
-        chaincode, n_harmonic, 1000, 1, 0, option)
+        chaincode, n_harmonic, n_dots, 1, 0, option)
 
     t = np.transpose([a, b, c, d])
     Hs = np.reshape(t, (1, -1))
@@ -703,24 +708,41 @@ def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
         matrix.append(letter + number)
 
     coffs[0].extend(matrix)
-    coffs.append([input_file.name])
+    coffs.append([str(input_file.absolute())])
     coffs[1].extend(Hs.flatten().tolist())
 
+    # 1000 *2
+    header2 = ['filepath']
+    for i in range(1, n_dots+1):
+        header2.extend([f'x{i}', f'y{i}'])
+    xy = [input_file.absolute(),]
+    xy.extend(_.flatten().tolist())
+
+    # FFT coordinate
+    out_file2 = out_file.with_suffix('.2.csv')
 
     if out_file.exists():
         with open(out_file, 'a', encoding='utf-8', newline='') as out:
             writer = csv.writer(out)
             writer.writerows(coffs[1:])
+        with open(out_file2, 'a', encoding='utf-8', newline='') as out:
+            writer = csv.writer(out)
+            writer.writerow(xy)
     else:
         with open(out_file, 'a', encoding='utf-8', newline='') as out:
             writer = csv.writer(out)
             writer.writerows(coffs)
+        with open(out_file2, 'a', encoding='utf-8', newline='') as out:
+            writer = csv.writer(out)
+            writer.writerow(header2)
+            writer.writerow(xy)
     return out_file
 
 
 def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
             n_harmonic: int) -> Path:
-    # todo: max number?
+    # todo: output only half figure
+    n_dots = 1000
     max_numofharmoinc = n_harmonic
     mode = 0
     # todo: figure size?
@@ -744,7 +766,7 @@ def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
 
     option = get_options()
 
-    x_, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400, 0, mode, option)
+    x_, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, n_dots, 0, mode, option)
     chain_points_approx = np.vstack((x_, x_[0, :]))
     # print(chain_points_approx)
 
@@ -759,7 +781,8 @@ def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
         x1, y1, x2, y2 = tmp
         cv2.line(canvas, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
 
-    chain_points_approx2, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, 400,
+    chain_points_approx2, *_, = fourier_approx_norm_modify(chain_code,
+                                                           n_harmonic, n_dots,
                                                            1, mode, option)
     for i in range(len(chain_points_approx2) - 1):
         x1 = chain_points_approx[i, 0] + contour_points[0]
@@ -814,6 +837,7 @@ def cli_main():
         out_img_file = plot_hs(chain_code_result, out_img_file, canvas,
                                n_harmonic)
         log.info(f'Output data: {arg.out}')
+        log.info(f'Output data: {arg.out.with_suffix(".2.csv")}')
         log.info(f'Output image: {out_img_file}')
         log.debug('Write: contour')
         log.debug('Green: boundary')
@@ -821,6 +845,11 @@ def cli_main():
         log.debug('Red: chain code approximate')
         log.debug('Yellow: chain code approximate with normalization')
     log.info('Done')
+
+
+def calc_distance():
+    pass
+
 
 
 if __name__ == '__main__':

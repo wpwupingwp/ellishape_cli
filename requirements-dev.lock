@@ -12,6 +12,8 @@
 -e file:.
 loguru==0.7.2
     # via ellishape-cli
+memoization==0.4.0
+    # via ellishape-cli
 numpy==1.26.4
     # via ellishape-cli
     # via opencv-python
