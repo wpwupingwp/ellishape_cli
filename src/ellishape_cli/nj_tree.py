@@ -14,8 +14,11 @@ xy_csv = Path('../data/out.2.csv')
 
 def get_distance(a: np.array, b: np.array) :
     # Euclidean distance
+    print(a.shape, b.shape)
+    # a = a.T
+    # b = b.T
+    # print(a.shape, b.shape)
     e_dist = np.linalg.norm(a-b)
-    return e_dist, 0, 0
     h_dist = cv2.createHausdorffDistanceExtractor().computeDistance(a, b)
     s_dist = cv2.createShapeContextDistanceExtractor().computeDistance(a, b)
     return e_dist, h_dist, s_dist
@@ -35,8 +38,8 @@ for i in range(len(data)):
         a_name = data[i][0]
         b_name = data[i][1]
         # print(data[i][1:][:10])
-        a = np.array(data[i][1:]).reshape(-1, 2).astype(float)
-        b = np.array(data[j][1:]).reshape(-1, 2).astype(float)
+        a = np.array(data[i][1:]).reshape(-1,1, 2).astype(float)
+        b = np.array(data[j][1:]).reshape(-1,1, 2).astype(float)
         e_dist, h_dist, s_dist = get_distance(a, b)
         e_dist_list.append(e_dist)
         h_dist_list.append(h_dist)
