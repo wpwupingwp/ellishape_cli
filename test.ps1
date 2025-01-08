@@ -5,4 +5,6 @@ cd src/ellishape_cli
 &python cli.py -i ../data/square_rotate_small.png -n 35
 &python cli.py -i ../data/star.png -n 35
 &python cli.py -i ../data/leaf.png -n 35
+&python cli.py -i ../data/leaf2.png -n 35
+&python cli.py -i ../data/leaf3.png -n 35
 cd ../..
