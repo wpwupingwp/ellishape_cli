@@ -10,6 +10,8 @@ import numpy as np
 from ellishape_cli.global_vars import log
 from memoization import cached
 
+n_dots = 500
+
 code_axis_map = {
     0: [0, 1],
     1: [-1, 1],
@@ -705,7 +707,6 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
 def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
     # todo: get options
     option = get_options()
-    n_dots = 1000
 
     _, a, b, c, d = fourier_approx_norm_modify(
         chaincode, n_harmonic, n_dots, 1, 0, option)
@@ -755,7 +756,6 @@ def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
 def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
             n_harmonic: int) -> Path:
     # todo: output only half figure
-    n_dots = 1000
     max_numofharmoinc = n_harmonic
     mode = 0
     # todo: figure size?
