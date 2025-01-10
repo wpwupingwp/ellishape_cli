@@ -10,7 +10,6 @@ import numpy as np
 from ellishape_cli.global_vars import log
 from memoization import cached
 
-n_dots = 500
 
 code_axis_map = {
     0: [0, 1],
@@ -704,7 +703,8 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     return chaincode, img_result
 
 
-def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
+def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int,
+            n_dots: int):
     # todo: get options
     option = get_options()
 
@@ -754,7 +754,7 @@ def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int):
 
 
 def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
-            n_harmonic: int) -> Path:
+            n_harmonic: int, n_dots: int) -> Path:
     # todo: output only half figure
     max_numofharmoinc = n_harmonic
     mode = 0
@@ -814,14 +814,15 @@ def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
 def parse_args():
     arg = argparse.ArgumentParser(description='ElliShape cli')
     arg.add_argument('-i', '-input', dest='input',
-                      help='input grayscale image with white as leaf',
+                      help='input grayscale image with white as foreground',
                       required=True)
     arg.add_argument('-n', '-n_harmonic', dest='n_harmonic',
-                      default=35, type=int,
-                      help='number of harmonic rank')
-    arg.add_argument('-out_image', action='store_true',
-                      help='output result image')
+                      default=35, type=int, help='number of harmonic rank')
+    arg.add_argument('-n_dots', type=int, default=500,
+                     help='number of output dots')
     arg.add_argument('-out', help='output csv file')
+    arg.add_argument('-out_image', action='store_true',
+                     help='output result image')
     return arg.parse_args()
 
 
@@ -833,7 +834,6 @@ def cli_main():
     if not arg.input.exists():
         log.error(f'Input {arg.input} does not exist')
         return -1
-    n_harmonic = arg.n_harmonic
     if arg.out is None:
         arg.out = arg.input.parent / 'out.csv'
     else:
@@ -843,12 +843,12 @@ def cli_main():
     if chain_code_result is None:
         log.error('Quit')
         return -1
-    calc_hs(chain_code_result, arg.input, arg.out, n_harmonic)
+    calc_hs(chain_code_result, arg.input, arg.out, arg.n_harmonic, arg.n_dots)
     if arg.out_image:
         canvas = img_result
         out_img_file = arg.out.with_name(arg.out.stem + '-out.png')
         out_img_file = plot_hs(chain_code_result, out_img_file, canvas,
-                               n_harmonic)
+                               arg.n_harmonic, arg.n_dots)
         log.info(f'Output data: {arg.out}')
         log.info(f'Output data: {arg.out.with_suffix(".2.csv")}')
         log.info(f'Output image: {out_img_file}')
