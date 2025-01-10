@@ -846,7 +846,7 @@ def cli_main():
     calc_hs(chain_code_result, arg.input, arg.out, arg.n_harmonic, arg.n_dots)
     if arg.out_image:
         canvas = img_result
-        out_img_file = arg.out.with_name(arg.out.stem + '-out.png')
+        out_img_file = arg.input.with_suffix('.out.png')
         out_img_file = plot_hs(chain_code_result, out_img_file, canvas,
                                arg.n_harmonic, arg.n_dots)
         log.info(f'Output data: {arg.out}')
