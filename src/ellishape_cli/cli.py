@@ -319,6 +319,8 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
 
     # parallel
     with ProcessPoolExecutor() as executor:
+        # todo: send_bytes too expensive
+        # todo: calc_harmonic_coefficients_modify have useless repeat calculation
         results = list(executor.map(compute_harmonic_coefficients, [ai] * n, range(n)))
 
     for i, harmonic_coeff in enumerate(results):
@@ -546,7 +548,7 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
             two_n_pi * tp_prev / T))
 
     if n == 0:
-        print("n must be non-zero")
+        log.error('n must be non-zero')
 
     try:
         r = T / (2 * n ** 2 * np.pi ** 2)
