@@ -5,7 +5,6 @@ from concurrent.futures import ProcessPoolExecutor
 
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from ellishape_cli.global_vars import log
@@ -17,7 +16,7 @@ s_calc = cv2.createShapeContextDistanceExtractor()
 
 def parse_args():
     arg = argparse.ArgumentParser()
-    arg.add_argument('-i', '-input', dist='input', required=True,
+    arg.add_argument('-i', '-input', dest='input', required=True,
                      help='input csv of value matrix, first column for names')
     arg.add_argument('-o', '-output', dest='output', default='out',
                      help='output prefix')
@@ -28,20 +27,30 @@ def parse_args():
 
 # df = pd.read_excel(distance_csv)
 # print(df)
-def csv2matrix(input_file: Path):
+def read_csv(input_file: Path):
     # convert input value table to left lower matrix
     with open(input_file, 'r', newline='') as csv_file:
         reader = csv.reader(csv_file, delimiter=',')
         header = next(reader)
-        data = list(reader)
-    names = np.array(data)[:, 0:1].flatten().tolist()
+        lines = list(reader)
+    raw_data = np.array(lines)
+    names = raw_data[:, 0:1].flatten().tolist()
+    # names = np.array(data)[:, 0:1].flatten().tolist()
+    # todo: use copy?
+    data = raw_data[:, 1:].copy()
     return names, data
 
 
-def matrix2csv(out_file: Path, matrix: list) -> Path:
+def matrix2csv(out_file: Path, names:list, dist_dict: dict) -> Path:
     # output matrix to csv file
     # todo
+    e_dist_matrix, h_dist_matrix, s_dist_matrix = [], [], []
+    for i in range(len(names)):
+        e_dist_list, h_dist_list, s_dist_list = [], [], []
+        for j in range(i+1):
+            pass
     pass
+
 
 def get_distance(a: np.array, b: np.array, skip_s_dist=True):
     # Euclidean distance
@@ -63,14 +72,15 @@ def get_distance_matrix(names, data):
             a_name = names[i]
             b_name = names[j]
             # print(data[i][1:][:10])
-            a = np.array(data[i][1:]).reshape(-1,1, 2).astype(float)
-            b = np.array(data[j][1:]).reshape(-1,1, 2).astype(float)
+            a = np.array(data[i]).reshape(-1,1, 2).astype(float)
+            b = np.array(data[j]).reshape(-1,1, 2).astype(float)
             if i == j:
                 e_dist, h_dist, s_dist = 0, 0, 0
             else:
                 e_dist, h_dist, s_dist = get_distance(a, b)
-                # todo
-            log.info(f'{data[i][0]} {data[j][0]}')
+                # todo: parallel
+            # log.info(f'{data[i][0]} {data[j][0]}')
+            log.info(f'{a_name} {b_name}')
             log.debug(f'{a.shape=} {b.shape=}')
             log.info(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
             e_dist_list.append(e_dist)
@@ -94,7 +104,7 @@ def get_distance_matrix(names, data):
     return e_dist_matrix, h_dist_matrix, s_dist_matrix
 
 
-def build_nj_tree(names: list, matrix: list) -> Phylo.Tree:
+def build_nj_tree(names: list, matrix: list) -> 'Phylo.Tree':
     distance_matrix_obj = DistanceMatrix(names, matrix)
     constructor = DistanceTreeConstructor()
     # build NJ tree
@@ -118,7 +128,7 @@ def get_tree():
     arg.input = Path(arg.input).absolute()
     assert arg.input.exists()
 
-    names, data = csv2matrix(arg.input)
+    names, data = read_csv(arg.input)
     if len(names) == 0:
         log.error('Empty input')
         raise SystemExit(-1)
@@ -126,11 +136,11 @@ def get_tree():
     e_dist_matrix, h_dist_matrix, s_dist_matrix = get_distance_matrix(names, data)
     for name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
                             [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
-        out_tree = arg.input.parent / (arg.out+name+'.nwk')
-        out_matrix = arg.input.parent / (arg.out+name+'.matrix.csv')
+        out_tree = arg.input.parent / (arg.output+name+'.nwk')
+        out_matrix = arg.input.parent / (arg.output+name+'.matrix.csv')
         tree = build_nj_tree(names, matrix)
         Phylo.write(tree, out_tree, 'newick')
-        matrix2csv(out_matrix, matrix)
+        # matrix2csv(out_matrix, matrix)
     log.info('Done')
 
 
