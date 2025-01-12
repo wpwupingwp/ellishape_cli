@@ -27,7 +27,7 @@ def parse_args():
 
 # df = pd.read_excel(distance_csv)
 # print(df)
-def read_csv(input_file: Path):
+def read_csv(input_file: Path, simple_name=True):
     # convert input value table to left lower matrix
     with open(input_file, 'r', newline='') as csv_file:
         reader = csv.reader(csv_file, delimiter=',')
@@ -35,10 +35,22 @@ def read_csv(input_file: Path):
         lines = list(reader)
     raw_data = np.array(lines)
     names = raw_data[:, 0:1].flatten().tolist()
+    if simple_name:
+        simple_names = []
+        s2 = set()
+        for i in names:
+            simple = Path(i).stem
+            if simple in s2:
+                log.warning(f'Found duplicate names: {i} -> {simple}')
+                raise SystemExit(-2)
+            s2.add(simple)
+            simple_names.append(i)
+    else:
+        simple_names = names
     # names = np.array(data)[:, 0:1].flatten().tolist()
     # todo: use copy?
     data = raw_data[:, 1:].copy()
-    return names, data
+    return simple_names, data
 
 
 def matrix2csv(out_file: Path, names:list, dist_dict: dict) -> Path:
