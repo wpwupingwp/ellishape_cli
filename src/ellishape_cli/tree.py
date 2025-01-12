@@ -55,7 +55,14 @@ def x(name, a, b):
     pass
 
 
-def matrix2csv(out_file: Path, names:list, matrix: list) -> Path:
+def matrix2csv(m_name: str, names:list, matrix: list, arg) -> Path|None:
+    out_file = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
+    if m_name == 'h_dist' and not arg.h_dist:
+        log.warning('Skip h_dist matrix')
+        return
+    if m_name == 's_dist' and not arg.s_dist:
+        log.warning('Skip s_dist matrix')
+        return
     with open(out_file, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)
         header = ['Name', ]
@@ -65,6 +72,7 @@ def matrix2csv(out_file: Path, names:list, matrix: list) -> Path:
             line = [name,]
             line.extend(row)
             writer.writerow(line)
+    log.info(f'Output matrix {out_file}')
     return out_file
 
 
@@ -151,7 +159,14 @@ def get_distance_matrix(names, data, arg):
     return e_dist_matrix, h_dist_matrix, s_dist_matrix
 
 
-def build_nj_tree(names: list, matrix: list) -> 'Phylo.Tree':
+def build_nj_tree(m_name, names: list, matrix: list, arg):
+    out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
+    if m_name == 'h_dist' and not arg.h_dist:
+        log.warning('Skip h_dist tree')
+        return
+    if m_name == 's_dist' and not arg.s_dist:
+        log.warning('Skip s_dist tree')
+        return
     distance_matrix_obj = DistanceMatrix(names, matrix)
     constructor = DistanceTreeConstructor()
     # build NJ tree
@@ -164,9 +179,10 @@ def build_nj_tree(names: list, matrix: list) -> 'Phylo.Tree':
     # for t in tree.get_nonterminals():
     #     t.name = ''
     log.debug(tree)
-
     # Phylo.draw(tree, branch_labels=lambda x: f'{x.branch_length:.2f}', do_show=True)
     # plt.savefig(name + '.pdf')
+    Phylo.write(tree, out_tree, 'newick')
+    log.info(f'Output tree {out_tree}')
     return tree
 
 
@@ -194,15 +210,12 @@ def get_tree():
 
     for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
                             [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
-        out_matrix = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
-        matrix2csv(out_matrix, names, matrix)
-        log.info(f'Output matrix {out_matrix}')
-    for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
-                              [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
-        out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
-        tree = build_nj_tree(names, matrix)
-        Phylo.write(tree, out_tree, 'newick')
-        log.info(f'Output tree {out_tree}')
+        matrix2csv(m_name, names, matrix, arg)
+    with ProcessPoolExecutor() as executor:
+        for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
+                                  [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
+            executor.submit(build_nj_tree,m_name, names, matrix, arg)
+            # build_nj_tree(m_name, names, matrix, arg)
     log.info('Done')
     end = timer()
     log.info(f'{len(names)} samples')
