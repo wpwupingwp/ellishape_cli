@@ -13,6 +13,7 @@ from ellishape_cli.global_vars import log
 h_calc = cv2.createHausdorffDistanceExtractor()
 s_calc = cv2.createShapeContextDistanceExtractor()
 
+pool = ProcessPoolExecutor()
 
 def parse_args():
     arg = argparse.ArgumentParser()
@@ -53,6 +54,10 @@ def read_csv(input_file: Path, simple_name=True):
     return simple_names, data
 
 
+def x(name, a, b):
+    pass
+
+
 def matrix2csv(out_file: Path, names:list, matrix: list) -> Path:
     with open(out_file, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)
@@ -66,7 +71,13 @@ def matrix2csv(out_file: Path, names:list, matrix: list) -> Path:
     return out_file
 
 
-def get_distance(a: np.array, b: np.array, skip_s_dist=True):
+def get_distance(a_name: str, b_name: str, a: np.array, b: np.array,
+                 skip_s_dist=True):
+    pair_name = f'{a_name}-{b_name}'
+    log.info(f'Pair {pair_name}')
+    log.debug(f'{a.shape=} {b.shape=}')
+    if a_name == b_name:
+        return pair_name, 0, 0, 0
     # Euclidean distance
     e_dist = np.linalg.norm(a - b)
     h_dist = h_calc.computeDistance(a, b)
@@ -75,27 +86,41 @@ def get_distance(a: np.array, b: np.array, skip_s_dist=True):
         s_dist = 0
     else:
         s_dist = s_calc.computeDistance(a, b)
-    return e_dist, h_dist, s_dist
+    log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
+    return pair_name, e_dist, h_dist, s_dist
+
 
 def get_distance_matrix(names, data):
     e_dist_matrix, h_dist_matrix, s_dist_matrix = [], [], []
+    name_result = dict()
+    results = []
+    with ProcessPoolExecutor() as executor:
+        for i in range(len(data)):
+            for j in range(i+1):
+                a_name = names[i]
+                b_name = names[j]
+                a = data[i].reshape(-1,1, 2).astype(float)
+                b = data[j].reshape(-1,1, 2).astype(float)
+                results.append(executor.submit(get_distance, a_name, b_name, a, b))
+    for r in results:
+        result = r.result()
+        pair_name, e_dist, h_dist, s_dist = result
+        name_result[pair_name] = [e_dist, h_dist, s_dist]
+
     for i in range(len(data)):
         e_dist_list, h_dist_list, s_dist_list = [], [], []
         for j in range(i+1):
             a_name = names[i]
             b_name = names[j]
+            pair_name = f'{a_name}-{b_name}'
             # print(data[i][1:][:10])
-            a = np.array(data[i]).reshape(-1,1, 2).astype(float)
-            b = np.array(data[j]).reshape(-1,1, 2).astype(float)
-            if i == j:
-                e_dist, h_dist, s_dist = 0, 0, 0
-            else:
-                e_dist, h_dist, s_dist = get_distance(a, b)
-                # todo: parallel
+            # a = np.array(data[i]).reshape(-1,1, 2).astype(float)
+            # b = np.array(data[j]).reshape(-1,1, 2).astype(float)
+
+            # todo: parallel
+            e_dist, h_dist, s_dist = name_result[pair_name]
+            # e_dist, h_dist, s_dist = get_distance(a_name, b_name, a, b)
             # log.info(f'{data[i][0]} {data[j][0]}')
-            log.info(f'{a_name} {b_name}')
-            log.debug(f'{a.shape=} {b.shape=}')
-            log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
             e_dist_list.append(e_dist)
             h_dist_list.append(h_dist)
             s_dist_list.append(s_dist)
