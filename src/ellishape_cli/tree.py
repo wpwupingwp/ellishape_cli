@@ -1,3 +1,4 @@
+import sys
 import csv
 from pathlib import Path
 import argparse
@@ -22,8 +23,10 @@ def parse_args():
                      help='input csv of value matrix, first column for names')
     arg.add_argument('-o', '-output', dest='output', default='out',
                      help='output prefix')
+    arg.add_argument('-h_dist', action='store_true',
+                     help='calculate Hausdorff distance')
     arg.add_argument('-s_dist', action='store_true',
-                     help='Calculate shape context distance, slow')
+                     help='calculate shape context distance')
     return arg.parse_args()
 
 
@@ -65,43 +68,49 @@ def matrix2csv(out_file: Path, names:list, matrix: list) -> Path:
     return out_file
 
 
-def get_distance(a_name: str, b_name: str, a: np.array, b: np.array,
-                 skip_s_dist=True):
+def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
+                 get_h_dist=False, get_s_dist=False):
     pair_name = f'{a_name}-{b_name}'
-    log.info(f'Pair {pair_name}')
-    log.debug(f'{a.shape=} {b.shape=}')
+    # log.info(f'Pair {pair_name}')
+    # log.debug(f'{a.shape=} {b.shape=}')
+    a = a_raw.reshape(-1, 1, 2).astype(np.float16)
+    b = b_raw.reshape(-1, 1, 2).astype(np.float16)
     if a_name == b_name:
         return pair_name, 0, 0, 0
     # Euclidean distance
     e_dist = np.linalg.norm(a - b)
-    h_dist = h_calc.computeDistance(a, b)
-    # h_dist = 0
     # s_dist shows long branch between square and rotated square
-    if skip_s_dist:
-        s_dist = 0
-    else:
+    s_dist, h_dist = 0, 0
+    if get_h_dist:
+        h_dist = h_calc.computeDistance(a, b)
+    if get_s_dist:
         s_dist = s_calc.computeDistance(a, b)
-    log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
+    # log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
     log.info(f'{pair_name} done')
     return pair_name, e_dist, h_dist, s_dist
 
 
 
 
-def get_distance_matrix(names, data):
+def get_distance_matrix(names, data, arg):
+    get_s_dist = arg.s_dist
+    get_h_dist = arg.h_dist
     e_dist_matrix, h_dist_matrix, s_dist_matrix = [], [], []
     name_result = dict()
     # parallel
     futures = []
 
+    # log.info('Submit jobs')
     with ProcessPoolExecutor() as executor:
         for i in range(len(data)):
             for j in range(i+1):
                 a_name = names[i]
                 b_name = names[j]
-                a = data[i].reshape(-1,1, 2).astype(float)
-                b = data[j].reshape(-1,1, 2).astype(float)
-                futures.append(executor.submit(get_distance, a_name, b_name, a, b))
+                a = data[i].copy()
+                b = data[j].copy()
+                futures.append(executor.submit(
+                    get_distance, a_name, b_name, a, b, get_h_dist, get_s_dist))
+    # log.info('Submit done')
     for r in futures:
         result = r.result()
         pair_name, e_dist, h_dist, s_dist = result
@@ -170,26 +179,39 @@ def get_tree():
     assert arg.input.exists()
 
     names, data = read_csv(arg.input)
-    log.info(f'{len(names)} samples')
-    log.info(f'Need {len(data)*(len(data)-1)/2} times comparison')
+    read_time = timer()
+    r_limit = sys.getrecursionlimit()
+    new_limit = len(names) * 10
+    sys.setrecursionlimit(new_limit)
+    log.warning(f'Set recursion limit from {r_limit} to {new_limit}')
     if len(names) == 0:
         log.error('Empty input')
         raise SystemExit(-1)
 
-    e_dist_matrix, h_dist_matrix, s_dist_matrix = get_distance_matrix(names, data)
+    e_dist_matrix, h_dist_matrix, s_dist_matrix = get_distance_matrix(
+        names, data, arg)
+    matrix_time = timer()
+
     for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
                             [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
-        out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
         out_matrix = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
+        matrix2csv(out_matrix, names, matrix)
+        log.info(f'Output matrix {out_matrix}')
+    for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
+                              [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
+        out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
         tree = build_nj_tree(names, matrix)
         Phylo.write(tree, out_tree, 'newick')
-        matrix2csv(out_matrix, names, matrix)
         log.info(f'Output tree {out_tree}')
-        log.info(f'Output matrix {out_matrix}')
     log.info('Done')
     end = timer()
-    log.info(f'Time elapsed: {end - start}')
-
+    log.info(f'{len(names)} samples')
+    log.info(f'{len(data)*(len(data)-1)/2} pairs')
+    log.info(f'Total time elapsed: {end - start:.2f}')
+    log.info(f'Read: {read_time - start:.2f}')
+    log.info(f'Matrix: {matrix_time - read_time:.2f}')
+    log.info(f'Tree: {end - matrix_time:.2f}')
+    sys.setrecursionlimit(r_limit)
 
 if __name__ == '__main__':
     get_tree()

@@ -1,0 +1,9 @@
+n_sample,dist,n_pair,seconds
+7,e_dist&h_dist,21,1.45
+15,e_dist&h_dist,105,2.79
+100,e_dist&h_dist,4950,118
+20,e_dist&h_dist,190,9.76
+20,e_dist,190,4.28
+100,e_dist,4950,9.62
+200,e_dist,19900,42.56
+500,e_dist,124750,x.56
