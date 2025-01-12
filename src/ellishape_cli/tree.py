@@ -2,6 +2,7 @@ import csv
 from pathlib import Path
 import argparse
 from concurrent.futures import ProcessPoolExecutor
+from timeit import default_timer as timer
 
 import cv2
 import numpy as np
@@ -74,19 +75,25 @@ def get_distance(a_name: str, b_name: str, a: np.array, b: np.array,
     # Euclidean distance
     e_dist = np.linalg.norm(a - b)
     h_dist = h_calc.computeDistance(a, b)
+    # h_dist = 0
     # s_dist shows long branch between square and rotated square
     if skip_s_dist:
         s_dist = 0
     else:
         s_dist = s_calc.computeDistance(a, b)
     log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
+    log.info(f'{pair_name} done')
     return pair_name, e_dist, h_dist, s_dist
+
+
 
 
 def get_distance_matrix(names, data):
     e_dist_matrix, h_dist_matrix, s_dist_matrix = [], [], []
     name_result = dict()
-    results = []
+    # parallel
+    futures = []
+
     with ProcessPoolExecutor() as executor:
         for i in range(len(data)):
             for j in range(i+1):
@@ -94,12 +101,13 @@ def get_distance_matrix(names, data):
                 b_name = names[j]
                 a = data[i].reshape(-1,1, 2).astype(float)
                 b = data[j].reshape(-1,1, 2).astype(float)
-                results.append(executor.submit(get_distance, a_name, b_name, a, b))
-    for r in results:
+                futures.append(executor.submit(get_distance, a_name, b_name, a, b))
+    for r in futures:
         result = r.result()
         pair_name, e_dist, h_dist, s_dist = result
         name_result[pair_name] = [e_dist, h_dist, s_dist]
 
+    # read result
     for i in range(len(data)):
         e_dist_list, h_dist_list, s_dist_list = [], [], []
         for j in range(i+1):
@@ -156,6 +164,7 @@ def build_nj_tree(names: list, matrix: list) -> 'Phylo.Tree':
 def get_tree():
     # init args
     log.info('Start')
+    start = timer()
     arg = parse_args()
     arg.input = Path(arg.input).absolute().resolve()
     assert arg.input.exists()
@@ -178,6 +187,8 @@ def get_tree():
         log.info(f'Output tree {out_tree}')
         log.info(f'Output matrix {out_matrix}')
     log.info('Done')
+    end = timer()
+    log.info(f'Time elapsed: {end - start}')
 
 
 if __name__ == '__main__':
