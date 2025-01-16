@@ -1,6 +1,6 @@
 [project]
 name = "ellishape-cli"
-version = "1.2.0"
+version = "1.2.1"
 description = "Command-line version of ellishape"
 authors = [
     { name = "Sally yang", email = "2500876951@qq.com" },
@@ -9,7 +9,7 @@ authors = [
 dependencies = [
     "opencv-contrib-python>=4.10.0.84",
     "loguru>=0.7.2",
-    "numpy<2.0",
+    "numpy>1.26",
     "memoization>=0.4.0",
     "biopython>=1.84",
 ]
