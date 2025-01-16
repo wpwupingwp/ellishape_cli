@@ -217,7 +217,7 @@ def matrix_to_kinds(sample_names: list, matrix: list, category_csv: Path):
             x_kind = name_kind[sample_names[x]]
             y_kind = name_kind[sample_names[y]]
             value = matrix[x][y]
-            if x_kind > y_kind:
+            if x_kind < y_kind:
                 x_kind, y_kind = y_kind, x_kind
             kind_values[f'{x_kind}-{y_kind}'].append(value)
 
@@ -225,7 +225,7 @@ def matrix_to_kinds(sample_names: list, matrix: list, category_csv: Path):
     kind_std_matrix = []
     for i in range(len(kinds)):
         mean_list, std_list = [], []
-        for j in range(len(kinds)):
+        for j in range(i+1):
             a_name = kinds[i]
             b_name = kinds[j]
             pair_name = f'{a_name}-{b_name}'
