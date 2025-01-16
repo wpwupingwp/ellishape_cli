@@ -198,7 +198,7 @@ def get_tree():
     read_time = timer()
     r_limit = sys.getrecursionlimit()
     new_limit = len(names) * 10
-    sys.setrecursionlimit(new_limit)
+    sys.setrecursionlimit(max(r_limit, new_limit))
     log.warning(f'Set recursion limit from {r_limit} to {new_limit}')
     if len(names) == 0:
         log.error('Empty input')
