@@ -2,6 +2,7 @@ import sys
 import csv
 from pathlib import Path
 import argparse
+from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from timeit import default_timer as timer
 
@@ -9,18 +10,22 @@ import cv2
 import numpy as np
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
+
+from ellishape_cli.cli import check_input
 from ellishape_cli.global_vars import log
 
 # contour coordinates
 h_calc = cv2.createHausdorffDistanceExtractor()
 s_calc = cv2.createShapeContextDistanceExtractor()
-
 pool = ProcessPoolExecutor()
+
 
 def parse_args():
     arg = argparse.ArgumentParser()
     arg.add_argument('-i', '-input', dest='input', required=True,
                      help='input csv of value matrix, first column for names')
+    arg.add_argument('-kind', help="input csv of sample's kind, "
+                                   "format: sample name,kind name")
     arg.add_argument('-o', '-output', dest='output', default='out',
                      help='output prefix')
     arg.add_argument('-h_dist', action='store_true',
@@ -186,13 +191,64 @@ def build_nj_tree(m_name, names: list, matrix: list, arg):
     return tree
 
 
+def matrix_to_kinds(sample_names: list, matrix: list, category_csv: Path):
+    check_input(category_csv)
+    name_kind = dict()
+    with open(category_csv, 'r', encoding='utf-8') as f:
+        next(f)
+        for line in f:
+            name, kind = line.rstrip().split(',')
+            name_kind[name] = kind
+
+    kinds_set = set(name_kind.values())
+    kinds = sorted(list(kinds_set))
+
+    kind_values = defaultdict(list)
+    # for i in range(len(kinds)):
+    #     # mean_list, std_list = [], []
+    #     for j in range(len(kinds)):
+    #         a_name = kinds[i]
+    #         b_name = kinds[j]
+    #         pair_name = f'{a_name}-{b_name}'
+    #         kind_values[pair_name] = []
+    # kind_matrix.append(line_value)
+    for x in range(len(sample_names)):
+        for y in range(x+1):
+            x_kind = name_kind[sample_names[x]]
+            y_kind = name_kind[sample_names[y]]
+            value = matrix[x][y]
+            if x_kind > y_kind:
+                x_kind, y_kind = y_kind, x_kind
+            kind_values[f'{x_kind}-{y_kind}'].append(value)
+
+    kind_mean_matrix = []
+    kind_std_matrix = []
+    for i in range(len(kinds)):
+        mean_list, std_list = [], []
+        for j in range(len(kinds)):
+            a_name = kinds[i]
+            b_name = kinds[j]
+            pair_name = f'{a_name}-{b_name}'
+            values = kind_values[pair_name]
+            mean_list.append(np.mean(values))
+            std_list.append(np.std(values))
+        kind_mean_matrix.append(mean_list)
+        kind_std_matrix.append(std_list)
+    print(kind_mean_matrix)
+    print(kind_std_matrix)
+    return kinds, kind_mean_matrix, kind_std_matrix
+
+
 def get_tree():
     # init args
     log.info('Start')
     start = timer()
     arg = parse_args()
     arg.input = Path(arg.input).absolute().resolve()
-    assert arg.input.exists()
+    check_input(arg.input)
+    if arg.kind is not None:
+        arg.kind = Path(arg.kind).absolute().resolve()
+        check_input(arg.kind)
 
     names, data = read_csv(arg.input)
     read_time = timer()
@@ -211,13 +267,22 @@ def get_tree():
     for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
                             [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
         matrix2csv(m_name, names, matrix, arg)
+        if arg.kind is not None:
+            kinds, kind_mean_matrix, kind_std_matrix = matrix_to_kinds(
+                names, matrix, arg.kind)
+            m2_name = f'{m_name}-kind_mean'
+            m3_name = f'{m_name}-kind_std'
+            matrix2csv(m2_name, kinds, kind_mean_matrix, arg)
+            matrix2csv(m3_name, kinds, kind_std_matrix, arg)
     with ProcessPoolExecutor() as executor:
         for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
                                   [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
             executor.submit(build_nj_tree,m_name, names, matrix, arg)
             # build_nj_tree(m_name, names, matrix, arg)
-    log.info('Done')
     end = timer()
+    if arg.kind is not None:
+        arg.kind = Path(arg.kind).absolute().resolve()
+        check_input(arg.kind)
     log.info(f'{len(names)} samples')
     log.info(f'{len(data)*(len(data)-1)/2} pairs')
     log.info(f'Total time elapsed: {end - start:.2f}')
@@ -225,6 +290,7 @@ def get_tree():
     log.info(f'Matrix: {matrix_time - read_time:.2f}')
     log.info(f'Tree: {end - matrix_time:.2f}')
     sys.setrecursionlimit(r_limit)
+    log.info('Done')
 
 if __name__ == '__main__':
     get_tree()

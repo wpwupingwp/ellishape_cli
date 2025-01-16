@@ -67,6 +67,21 @@ def code2axis(chain_code, start_point):
     return axis
 
 
+def check_input(input_file: Path, encode='utf-8'):
+    if not input_file.exists():
+        log.error('Input file does not exist: {}'.format(input_file))
+        raise SystemExit(-1)
+    try:
+        line = ''
+        with open(input_file, 'r', encoding=encode) as _:
+            for n, line in enumerate(_):
+                pass
+    except UnicodeDecodeError:
+        log.error(f'Encode error found in {n} line, please convert it to utf-8')
+        log.error(line)
+        raise SystemExit(-2)
+
+
 def gui_chain_code_func(axis_info, origin_ori):
     nrow, ncol = axis_info.shape
     # print(nrow)
@@ -832,10 +847,8 @@ def cli_main():
     # one leaf per image
     arg = parse_args()
     arg.input = Path(arg.input).absolute()
+    check_input(arg.input)
     log.info(f'Input {arg.input}')
-    if not arg.input.exists():
-        log.error(f'Input {arg.input} does not exist')
-        return -1
     if arg.out is None:
         arg.out = arg.input.parent / 'out.csv'
     else:
