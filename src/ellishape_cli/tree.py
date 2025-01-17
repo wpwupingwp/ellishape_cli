@@ -274,6 +274,7 @@ def get_tree():
             m3_name = f'{m_name}-kind_std'
             matrix2csv(m2_name, kinds, kind_mean_matrix, arg)
             matrix2csv(m3_name, kinds, kind_std_matrix, arg)
+            build_nj_tree(m2_name, kinds, kind_mean_matrix, arg)
     with ProcessPoolExecutor() as executor:
         for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
                                   [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
