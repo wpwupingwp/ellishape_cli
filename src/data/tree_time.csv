@@ -12,4 +12,5 @@ n_sample,dist,n_pair,seconds
 207,"e_dist,outer astype",21321,12.02
 500,e_dist&outer astype&inner copy,124750,234.85(169.52)
 500,e_dist&inner astype&outer copy,124750,215.09(150.47)
-500,e_dist&outer astype&inner copy,124750,234.85(169.52)
+500,e_dist&outer astype&inner copy,124750,250.14(183.21)
+500,e_dist&outer astype&inner copy,124750,230.10(166.06)
