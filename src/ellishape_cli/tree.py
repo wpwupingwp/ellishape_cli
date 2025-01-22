@@ -126,7 +126,7 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
     if get_s_dist:
         s_dist = s_calc.computeDistance(a, b)
     # log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
-    log.info(f'{pair_name} done')
+    # log.info(f'{pair_name} done')
     return pair_name, e_dist, h_dist, s_dist
 
 
