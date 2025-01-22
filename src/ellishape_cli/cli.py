@@ -68,6 +68,7 @@ def code2axis(chain_code, start_point):
 
 
 def check_input(input_file: Path, encode='utf-8'):
+    n = 0
     if not input_file.exists():
         log.error('Input file does not exist: {}'.format(input_file))
         raise SystemExit(-1)
@@ -873,11 +874,6 @@ def cli_main():
         log.debug('Red: chain code approximate')
         log.debug('Yellow: chain code approximate with normalization')
     log.info('Done')
-
-
-def calc_distance():
-    pass
-
 
 
 if __name__ == '__main__':
