@@ -62,7 +62,8 @@ def read_kind_csv(category_csv: Path, sample_names: list) -> (dict, list):
         next(f)
         for line in f:
             name, kind = line.rstrip().split(',')
-            name_kind[name] = kind
+            simple_name = Path(name).stem
+            name_kind[simple_name] = kind
     kinds_set = set(name_kind.values())
     kinds = sorted(list(kinds_set))
     # check missing
@@ -280,7 +281,7 @@ def get_tree():
     if arg.kind is not None:
         arg.kind = Path(arg.kind).absolute().resolve()
         check_input(arg.kind)
-        name_kind, kinds = read_kind_csv(arg.kind ,names)
+        name_kind, kinds = read_kind_csv(arg.kind, names)
     else:
         name_kind, kinds = dict(), []
 
