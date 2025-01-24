@@ -848,7 +848,6 @@ def cli_main():
     # one leaf per image
     arg = parse_args()
     arg.input = Path(arg.input).absolute()
-    check_input(arg.input)
     log.info(f'Input {arg.input}')
     if arg.out is None:
         arg.out = arg.input.parent / 'out.csv'
