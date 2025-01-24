@@ -1,6 +1,6 @@
 [project]
 name = "ellishape-cli"
-version = "1.4.0"
+version = "1.4.1"
 description = "Command-line version of ellishape"
 authors = [
     { name = "Ping Wu", email = "wpwupingwp@outlook.com" },
