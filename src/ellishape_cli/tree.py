@@ -119,7 +119,8 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
         return pair_name, 0, 0, 0, 0
     minus = a - b
     # Euclidean distance
-    e_dist = np.mean(np.power(sum(np.power(minus, 2)), 0.5))
+    # e_dist = np.mean(np.power(sum(np.power(minus, 2)), 0.5))
+    e_dist = np.mean(np.linalg.norm(minus, axis=1))
     s_dist, h_dist, f_dist = 0, 0, 0
     # Frobenius distance
     if get_f_dist:
