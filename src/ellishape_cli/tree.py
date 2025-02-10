@@ -32,6 +32,8 @@ def parse_args():
                      help='calculate Hausdorff distance')
     arg.add_argument('-s_dist', action='store_true',
                      help='calculate shape context distance')
+    arg.add_argument('-f_dist', action='store_true',
+                     help='calculate Frobenius distance')
     return arg.parse_args()
 
 
@@ -88,10 +90,13 @@ def matrix2csv(m_name: str, names:list, matrix: list, arg) -> Path|None:
     out_file = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
     if m_name == 'h_dist' and not arg.h_dist:
         log.warning('Skip h_dist matrix')
-        return
+        return None
     if m_name == 's_dist' and not arg.s_dist:
         log.warning('Skip s_dist matrix')
-        return
+        return None
+    if m_name == 'f_dist' and not arg.f_dist:
+        log.warning('Skip f_dist matrix')
+        return None
     with open(out_file, 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)
         header = ['Name', ]
@@ -106,29 +111,27 @@ def matrix2csv(m_name: str, names:list, matrix: list, arg) -> Path|None:
 
 
 def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
-                 get_h_dist=False, get_s_dist=False):
+                 get_h_dist=False, get_s_dist=False, get_f_dist=False):
     pair_name = f'{a_name}-{b_name}'
-    # log.info(f'Pair {pair_name}')
-    # log.debug(f'{a.shape=} {b.shape=}')
-    # a = a_raw.reshape(-1, 1, 2).astype(np.float16)
-    # b = b_raw.reshape(-1, 1, 2).astype(np.float16)
-    # a = a_raw.reshape(-1, 1, 2)
-    # b = b_raw.reshape(-1, 1, 2)
     a = a_raw.copy().reshape(-1, 1, 2)
     b = b_raw.copy().reshape(-1, 1, 2)
     if a_name == b_name:
-        return pair_name, 0, 0, 0
+        return pair_name, 0, 0, 0, 0
+    minus = a - b
     # Euclidean distance
-    e_dist = np.linalg.norm(a - b)
+    e_dist = np.mean(np.power(sum(np.power(minus, 2)), 0.5))
+    s_dist, h_dist, f_dist = 0, 0, 0
+    # Frobenius distance
+    if get_f_dist:
+        f_dist = np.linalg.norm(minus)
     # s_dist shows long branch between square and rotated square
-    s_dist, h_dist = 0, 0
     if get_h_dist:
         h_dist = h_calc.computeDistance(a, b)
     if get_s_dist:
         s_dist = s_calc.computeDistance(a, b)
     # log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
     log.info(f'{pair_name} done')
-    return pair_name, e_dist, h_dist, s_dist
+    return pair_name, e_dist, h_dist, s_dist, f_dist
 
 
 def get_task(names, data, h, s):
@@ -144,15 +147,14 @@ def get_task(names, data, h, s):
 def get_distance_matrix(names, data, arg):
     get_s_dist = arg.s_dist
     get_h_dist = arg.h_dist
-    e_dist_matrix, h_dist_matrix, s_dist_matrix = [], [], []
+    get_f_dist = arg.f_dist
+    e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix = [], [], [], []
     name_result = dict()
     # parallel
     futures = []
-
     data = data.astype(np.float16)
     # garbage collect to avoid out of memory
     n_batch = 1000
-
     with ProcessPoolExecutor() as executor:
         tasks_n = 0
         for i in range(len(data)):
@@ -166,19 +168,20 @@ def get_distance_matrix(names, data, arg):
                 # a = data[i].reshape(-1, 1, 2).astype(np.float16)
                 # b = data[j].reshape(-1, 1, 2).astype(np.float16)
                 future = executor.submit(
-                    get_distance, a_name, b_name, a, b, get_h_dist, get_s_dist)
+                    get_distance, a_name, b_name, a, b,
+                    get_h_dist, get_s_dist, get_f_dist)
                 futures.append(future)
                 tasks_n += 1
                 if tasks_n % n_batch == 0:
                     pass
     for r in futures:
         result = r.result()
-        pair_name, e_dist, h_dist, s_dist = result
-        name_result[pair_name] = [e_dist, h_dist, s_dist]
+        pair_name, e_dist, h_dist, s_dist, f_dist = result
+        name_result[pair_name] = [e_dist, h_dist, s_dist, f_dist]
 
     # read result
     for i in range(len(data)):
-        e_dist_list, h_dist_list, s_dist_list = [], [], []
+        e_dist_list, h_dist_list, s_dist_list, f_dist_list = [], [], [], []
         for j in range(i+1):
             a_name = names[i]
             b_name = names[j]
@@ -188,27 +191,18 @@ def get_distance_matrix(names, data, arg):
             # b = np.array(data[j]).reshape(-1,1, 2).astype(float)
 
             # todo: parallel
-            e_dist, h_dist, s_dist = name_result[pair_name]
+            e_dist, h_dist, s_dist, f_dist = name_result[pair_name]
             # e_dist, h_dist, s_dist = get_distance(a_name, b_name, a, b)
             # log.info(f'{data[i][0]} {data[j][0]}')
             e_dist_list.append(e_dist)
             h_dist_list.append(h_dist)
             s_dist_list.append(s_dist)
+            f_dist_list.append(f_dist)
         e_dist_matrix.append(e_dist_list)
         h_dist_matrix.append(h_dist_list)
         s_dist_matrix.append(s_dist_list)
-        # data = np.array(list(reader))
-        # distance_matrix_full = np.array(list(reader))
-    # from itertools import chain
-    # e_ = list(chain.from_iterable(e_dist_matrix))
-    # h_ = list(chain.from_iterable(h_dist_matrix))
-    # s_ = list(chain.from_iterable(s_dist_matrix))
-    # log.debug('max', np.max(e_), np.max(h_), np.max(s_))
-    # log.debug('min', np.min(e_), np.min(h_), np.min(s_))
-    # log.debug('mean', np.mean(e_), np.mean(h_), np.mean(s_))
-    # log.debug('std', np.std(e_), np.std(h_), np.std(s_))
-    # log.debug(e_dist_matrix)
-    return e_dist_matrix, h_dist_matrix, s_dist_matrix
+        f_dist_matrix.append(f_dist_list)
+    return e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix
 
 
 def build_nj_tree(m_name, names: list, matrix: list, arg):
@@ -219,6 +213,9 @@ def build_nj_tree(m_name, names: list, matrix: list, arg):
     if m_name == 's_dist' and not arg.s_dist:
         log.warning('Skip s_dist tree')
         return
+    if m_name == 'f_dist' and not arg.f_dist:
+        log.warning('Skip f_dist tree')
+        return
     distance_matrix_obj = DistanceMatrix(names, matrix)
     constructor = DistanceTreeConstructor()
     # build NJ tree
@@ -228,8 +225,6 @@ def build_nj_tree(m_name, names: list, matrix: list, arg):
         if t.branch_length < 0:
             log.debug(f'{t.branch_length:.2f}')
         t.branch_length = abs(t.branch_length)
-    # for t in tree.get_nonterminals():
-    #     t.name = ''
     log.debug(tree)
     # Phylo.draw(tree, branch_labels=lambda x: f'{x.branch_length:.2f}', do_show=True)
     # plt.savefig(name + '.pdf')
@@ -294,12 +289,13 @@ def get_tree():
         log.error('Empty input')
         raise SystemExit(-1)
 
-    e_dist_matrix, h_dist_matrix, s_dist_matrix = get_distance_matrix(
-        names, data, arg)
+    (e_dist_matrix, h_dist_matrix, s_dist_matrix,
+     f_dist_matrix) = get_distance_matrix(names, data, arg)
     matrix_time = timer()
 
-    for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
-                            [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
+    for m_name, matrix in zip(
+            ['e_dist', 'h_dist', 's_dist', 'f_dist'],
+            [e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix]):
         matrix2csv(m_name, names, matrix, arg)
         if arg.kind is not None:
             kind_mean_matrix, kind_std_matrix = matrix_to_kinds(
@@ -310,8 +306,9 @@ def get_tree():
             matrix2csv(m3_name, kinds, kind_std_matrix, arg)
             build_nj_tree(m2_name, kinds, kind_mean_matrix, arg)
     with ProcessPoolExecutor() as executor:
-        for m_name, matrix in zip(['e_dist', 'h_dist', 's_dist'],
-                                  [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
+        for m_name, matrix in zip(
+                ['e_dist', 'h_dist', 's_dist', 'f_dist'],
+                [e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix]):
             executor.submit(build_nj_tree,m_name, names, matrix, arg)
             # build_nj_tree(m_name, names, matrix, arg)
     end = timer()
