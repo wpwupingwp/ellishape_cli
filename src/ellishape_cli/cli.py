@@ -775,13 +775,15 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     canvas = cv2.imread(str(arg.input), cv2.IMREAD_COLOR)
     canvas = cv2.resize(canvas, (canvas.shape[1]//4, canvas.shape[0]//4))
     # ax = plt.subplot2grid((2, canvas.shape[0]//2), (canvas.shape[0], 2%canvas.shape[0]//2))
-    ax1 = plt.subplot2grid((1,2), (0,0))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
+    # ax1 = plt.subplot2grid((1,2), (0,0))
     # height, width = 1024, 1024
     # canvas1 = np.zeros((height, width, 3))
     # canvas2 = np.copy(canvas1)
     # cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
     # A0=C0=01000
     ax1.set_title('contour')
+    ax1.set_aspect('equal')
     ax1.plot(max_contour[:, 0], max_contour[:, 1], 'o', linewidth=2)
     # cv2.drawContours(canvas, [max_contour], 0, (0, 255, 0),
     #                  thickness=5)
@@ -792,8 +794,11 @@ def plot_result(efd_result, max_contour, arg) -> Path:
         a * np.cos(2 * n * np.pi * t) + b * np.sin(2 * n * np.pi * t), axis=0)
     y_t = np.sum(
         c * np.cos(2 * n * np.pi * t) + d * np.sin(2 * n * np.pi * t), axis=0)
-    ax2= plt.subplot2grid((1,2), (0,1))
+    # ax2= plt.subplot2grid((1,2), (0,1))
     ax2.set_title('Normalized ellipse fourier coefficients')
+    ax2.set_aspect('equal')
+    ax2.set_xlim(-2, 2)
+    ax2.set_ylim(-2, 2)
     ax2.plot(y_t, x_t, 'r', linewidth=2)
     # ax.imshow(canvas)
     plt.savefig(out_img_file)
