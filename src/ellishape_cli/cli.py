@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import argparse
 import csv
+from _ast import arg
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 
@@ -650,20 +651,23 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
         log.error('Cannot find boundary in the image file')
         return None
     max_contour = max(contours, key=cv2.contourArea)
+    m_ = max_contour.copy()
     max_contour = np.reshape(max_contour, (
         max_contour.shape[0], max_contour.shape[2]))
     log.debug(f'{max_contour[0][0]=}')
     log.debug(f'{max_contour.shape=}')
-    log.debug(f'{max_contour=}')
-    cv2.drawContours(img_result, [max_contour], -1, 255,
-                     thickness=1)
+    # log.debug(f'{max_contour=}')
+    # print(m_)
+    cv2.drawContours(img_result, [m_], 0, (255, 255, 255),
+                     thickness=3)
 
     # cv2.imshow('a', img_result)
+    # cv2.waitKey()
     # cv2.imshow('gray', gray)
     max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    log.debug(f'{max_contour[0][0]=}')
-    log.debug(f'{max_contour.shape=}')
-    log.debug(f'{max_contour=}')
+    log.info(f'{max_contour[0][0]=}')
+    log.info(f'{max_contour.shape=}')
+    # log.debug(f'{max_contour=}')
     boundary = max_contour
     log.debug(f'{max_contour[0].shape}')
     # chaincode, origin = gui_chain_code_func(gray, max_contour[0])
@@ -677,36 +681,27 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # Draw green line for boundary
     # todo: opencv needn't swap x and y?
     max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    cv2.polylines(img_result, [boundary], isClosed=True, color=(0, 255, 0),
-                  thickness=3)
-
+    # img_result = cv2.polylines(img_result, [m_], isClosed=True, color=(0, 255, 0),
+    #               thickness=3)
+    #
     # cv2.imshow('b', img_result)
-    x_ = calc_traversal_dist(chaincode)
-    x = np.vstack(([0, 0], x_))
+    # cv2.waitKey()
+    # x_ = calc_traversal_dist(chaincode)
+    # x = np.vstack(([0, 0], x_))
     # print(x)
 
     # Draw red line for chain code traversal
-    x = x.astype(np.int32)
+    # x = x.astype(np.int32)
     # todo: bad line
     # log.debug(f'{x=}')
-    cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
-                  thickness=3)
-    # cv2.imshow('c', img_result)
+    # cv2.imshow('bb', img_result)
+    # cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
+    #               thickness=5)
     # wait 1s
     # cv2.waitKey(1000)
     log.debug(f'{boundary[0]=}')
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
-    # todo: what is it?
-    # self.graphicsView_4.fitInView(self.graphicsView_4.sceneRect(),
-    #                               Qt.KeepAspectRatio)
-    # # Get the current transform
-    # transform = self.graphicsView_4.transform()
-    # # Apply the scale transformation
-    # transform.scale(7, 7)
-    # self.graphicsView_4.setTransform(transform)
-    # # Center the view on the specified point
-    # self.graphicsView_4.centerOn(QPointF(endpoint[1], endpoint[0]))
     if not is_closed:
         log.error(f'Chain code is not closed')
         log.error(f'Chain code length: {chaincode.shape[0]}')
@@ -715,19 +710,8 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
         log.debug(f'Chain code is closed')
         log.debug(f'{chaincode=}')
         log.debug(f'{chaincode.shape=}')
-        # self.pushButton_9.setEnabled(True)
-        # self.pushButton_10.setEnabled(True)
-        # self.pushButton_17.setEnabled(True)
     return chaincode, img_result
 
-
-def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int,
-            n_dots: int):
-    # todo: get options
-    option = get_options()
-
-    _, a, b, c, d = fourier_approx_norm_modify(
-        chaincode, n_harmonic, n_dots, 1, 0, option)
 
 def output_csv(dots, a, b, c, d, arg):
     n_harmonic = arg.n_harmonic
@@ -777,59 +761,20 @@ def output_csv(dots, a, b, c, d, arg):
     return out_file
 
 
-def plot_hs(chain_code: np.ndarray, out_img_file: Path, canvas: np.ndarray,
-            n_harmonic: int, n_dots: int) -> Path:
+def plot_hs(efd_result, canvas: np.ndarray, arg) -> Path:
     # todo: output only half figure
+    out_img_file = arg.out.with_suffix('.out.png')
+    n_harmonic = arg.n_harmonic
+    n_dots = arg.n_dots
     max_numofharmoinc = n_harmonic
+    dots, a, b, c, d = efd_result
     mode = 0
     # todo: figure size?
     # height, width = 1024, 1024
     # canvas1 = np.zeros((height, width, 3))
     # canvas2 = np.copy(canvas1)
-    if chain_code.size == 0:
-        log.error(f'Empty chain code')
-        return Path()
-    contour_points = np.array([0, 0])
-    chain_points = code2axis(chain_code, contour_points)
-    # draw blue line
-    chain_points = chain_points.astype(np.int32)
-    # log.debug(f'{chain_points.dtype=}')
-    # log.debug(f'{chain_points=}')
-    cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
+    # cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
 
-    if n_harmonic > max_numofharmoinc:
-        log.error(f'{n_harmonic=} must be less than {max_numofharmoinc=}')
-        return Path()
-
-    option = get_options()
-
-    x_, *_, = fourier_approx_norm_modify(chain_code, n_harmonic, n_dots, 0, mode, option)
-    chain_points_approx = np.vstack((x_, x_[0, :]))
-    # print(chain_points_approx)
-
-    # todo: ???
-    for i in range(len(chain_points_approx) - 1):
-        x1 = chain_points_approx[i, 0] + contour_points[0]
-        y1 = contour_points[1] - chain_points_approx[i, 1]
-
-        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
-        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
-        tmp = np.array([x1, y1, x2, y2], dtype=np.int32)
-        x1, y1, x2, y2 = tmp
-        cv2.line(canvas, (x1, y1), (x2, y2), (0, 0, 255), thickness=1)
-
-    chain_points_approx2, *_, = fourier_approx_norm_modify(chain_code,
-                                                           n_harmonic, n_dots,
-                                                           1, mode, option)
-    for i in range(len(chain_points_approx2) - 1):
-        x1 = chain_points_approx[i, 0] + contour_points[0]
-        y1 = contour_points[1] - chain_points_approx[i, 1]
-
-        x2 = chain_points_approx[i + 1, 0] + contour_points[0]
-        y2 = contour_points[1] - chain_points_approx[i + 1, 1]
-        tmp = np.array([x1, y1, x2, y2], dtype=np.int32)
-        x1, y1, x2, y2 = tmp
-        cv2.line(canvas, (x1, y1), (x2, y2), (0, 255, 255), thickness=1)
     # save_hs
     cv2.imwrite(str(out_img_file), canvas)
     return out_img_file
@@ -865,14 +810,14 @@ def cli_main():
         log.error('Quit')
         return -1
     option = get_options()
-    dots, a, b, c, d = fourier_approx_norm_modify(
+    efd_result = fourier_approx_norm_modify(
         chain_code_result, arg.n_harmonic, arg.n_dots, 1, 0, option)
+    dots, a, b, c, d = efd_result
     output_csv(dots, a, b, c, d, arg)
     if arg.out_image:
         canvas = img_result
         out_img_file = arg.input.with_suffix('.out.png')
-        out_img_file = plot_hs(chain_code_result, out_img_file, canvas,
-                               arg.n_harmonic, arg.n_dots)
+        out_img_file = plot_hs(efd_result, canvas, arg)
         log.info(f'Output data: {arg.out}')
         log.info(f'Output data: {arg.out.with_suffix(".2.csv")}')
         log.info(f'Output image: {out_img_file}')
