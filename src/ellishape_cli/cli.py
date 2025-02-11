@@ -729,6 +729,12 @@ def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int,
     _, a, b, c, d = fourier_approx_norm_modify(
         chaincode, n_harmonic, n_dots, 1, 0, option)
 
+def output_csv(dots, a, b, c, d, arg):
+    n_harmonic = arg.n_harmonic
+    n_dots = arg.n_dots
+    input_file = Path(arg.input)
+    out_file = Path(arg.out)
+
     t = np.transpose([a, b, c, d])
     Hs = np.reshape(t, (1, -1))
     coffs = [["filepath"]]
@@ -748,7 +754,7 @@ def calc_hs(chaincode, input_file: Path, out_file: Path, n_harmonic: int,
     for i in range(1, n_dots+1):
         header2.extend([f'x{i}', f'y{i}'])
     xy = [input_file.absolute(),]
-    xy.extend(_.flatten().tolist())
+    xy.extend(dots.flatten().tolist())
 
     # FFT coordinate
     out_file2 = out_file.with_suffix('.2.csv')
@@ -858,7 +864,10 @@ def cli_main():
     if chain_code_result is None:
         log.error('Quit')
         return -1
-    calc_hs(chain_code_result, arg.input, arg.out, arg.n_harmonic, arg.n_dots)
+    option = get_options()
+    dots, a, b, c, d = fourier_approx_norm_modify(
+        chain_code_result, arg.n_harmonic, arg.n_dots, 1, 0, option)
+    output_csv(dots, a, b, c, d, arg)
     if arg.out_image:
         canvas = img_result
         out_img_file = arg.input.with_suffix('.out.png')
