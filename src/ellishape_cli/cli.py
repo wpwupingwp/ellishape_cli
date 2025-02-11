@@ -348,7 +348,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
 
     A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
 
-    log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
+    log.info(f'{A0=}, {C0=}, {Tk=}, {T=}')
     # Normalization procedure
     if normalized:
         ro, sc, re, y_sy, x_sy, sta, trans = option
@@ -665,8 +665,8 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     # cv2.waitKey()
     # cv2.imshow('gray', gray)
     max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    log.info(f'{max_contour[0][0]=}')
-    log.info(f'{max_contour.shape=}')
+    log.debug(f'{max_contour[0][0]=}')
+    log.debug(f'{max_contour.shape=}')
     # log.debug(f'{max_contour=}')
     boundary = max_contour
     log.debug(f'{max_contour[0].shape}')
@@ -680,7 +680,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
 
     # Draw green line for boundary
     # todo: opencv needn't swap x and y?
-    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
+    # max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
     # img_result = cv2.polylines(img_result, [m_], isClosed=True, color=(0, 255, 0),
     #               thickness=3)
     #
@@ -710,7 +710,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
         log.debug(f'Chain code is closed')
         log.debug(f'{chaincode=}')
         log.debug(f'{chaincode.shape=}')
-    return chaincode, img_result
+    return chaincode, boundary
 
 
 def output_csv(dots, a, b, c, d, arg):
@@ -761,22 +761,42 @@ def output_csv(dots, a, b, c, d, arg):
     return out_file
 
 
-def plot_hs(efd_result, canvas: np.ndarray, arg) -> Path:
-    # todo: output only half figure
-    out_img_file = arg.out.with_suffix('.out.png')
+def plot_result(efd_result, max_contour, arg) -> Path:
+    out_img_file = arg.input.with_suffix('.out.png')
     n_harmonic = arg.n_harmonic
+    # n_dots = arg.n_dots + 1000
+    from matplotlib import pyplot as plt
     n_dots = arg.n_dots
-    max_numofharmoinc = n_harmonic
     dots, a, b, c, d = efd_result
-    mode = 0
-    # todo: figure size?
+    a = np.reshape(a, (n_harmonic, 1))
+    b = np.reshape(b, (n_harmonic, 1))
+    c = np.reshape(c, (n_harmonic, 1))
+    d = np.reshape(d, (n_harmonic, 1))
+    canvas = cv2.imread(str(arg.input), cv2.IMREAD_COLOR)
+    canvas = cv2.resize(canvas, (canvas.shape[1]//4, canvas.shape[0]//4))
+    # ax = plt.subplot2grid((2, canvas.shape[0]//2), (canvas.shape[0], 2%canvas.shape[0]//2))
+    ax1 = plt.subplot2grid((1,2), (0,0))
     # height, width = 1024, 1024
     # canvas1 = np.zeros((height, width, 3))
     # canvas2 = np.copy(canvas1)
     # cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
-
-    # save_hs
-    cv2.imwrite(str(out_img_file), canvas)
+    # A0=C0=01000
+    ax1.set_title('contour')
+    ax1.plot(max_contour[:, 0], max_contour[:, 1], 'o', linewidth=2)
+    # cv2.drawContours(canvas, [max_contour], 0, (0, 255, 0),
+    #                  thickness=5)
+    t = np.linspace(0, 1.0, num=n_dots, endpoint=False)  # [M] M: number of points
+    n = np.arange(1, n_harmonic + 1).reshape(
+        (-1, 1))  # efficients selected to reconstruct
+    x_t = np.sum(
+        a * np.cos(2 * n * np.pi * t) + b * np.sin(2 * n * np.pi * t), axis=0)
+    y_t = np.sum(
+        c * np.cos(2 * n * np.pi * t) + d * np.sin(2 * n * np.pi * t), axis=0)
+    ax2= plt.subplot2grid((1,2), (0,1))
+    ax2.set_title('Normalized ellipse fourier coefficients')
+    ax2.plot(y_t, x_t, 'r', linewidth=2)
+    # ax.imshow(canvas)
+    plt.savefig(out_img_file)
     return out_img_file
 
 
@@ -805,19 +825,17 @@ def cli_main():
     else:
         arg.out = Path(arg.out).absolute()
 
-    chain_code_result, img_result = get_chain_code(arg.input)
+    chain_code_result, max_contour = get_chain_code(arg.input)
     if chain_code_result is None:
         log.error('Quit')
         return -1
     option = get_options()
     efd_result = fourier_approx_norm_modify(
         chain_code_result, arg.n_harmonic, arg.n_dots, 1, 0, option)
-    dots, a, b, c, d = efd_result
+    dots, a, b, c, d =  efd_result
     output_csv(dots, a, b, c, d, arg)
     if arg.out_image:
-        canvas = img_result
-        out_img_file = arg.input.with_suffix('.out.png')
-        out_img_file = plot_hs(efd_result, canvas, arg)
+        out_img_file = plot_result(efd_result, max_contour, arg)
         log.info(f'Output data: {arg.out}')
         log.info(f'Output data: {arg.out.with_suffix(".2.csv")}')
         log.info(f'Output image: {out_img_file}')
