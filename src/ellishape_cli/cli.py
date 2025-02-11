@@ -352,6 +352,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
     # Normalization procedure
     if normalized:
         ro, sc, re, y_sy, x_sy, sta, trans = option
+        # ro, sc, re, y_sy, x_sy, sta, trans = [False]*7
         # Remove DC components
         if trans:
             A0 = 0
@@ -797,11 +798,24 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     # ax2= plt.subplot2grid((1,2), (0,1))
     ax2.set_title('Normalized ellipse fourier coefficients')
     ax2.set_aspect('equal')
-    ax2.set_xlim(-2, 2)
-    ax2.set_ylim(-2, 2)
+    # ax2.set_xlim(-2, 2)
+    # ax2.set_ylim(-2, 2)
     ax2.plot(y_t, x_t, 'r', linewidth=2)
     # ax.imshow(canvas)
     plt.savefig(out_img_file)
+    from pyefd import elliptic_fourier_descriptors, plot_efd
+    coeff_other = elliptic_fourier_descriptors(max_contour, normalize=True,
+                                                  order=n_harmonic)
+    coeff_us = np.concatenate([a,b,c,d], axis=1)
+    print(coeff_us.shape)
+    print(max_contour.shape)
+    fig2 = plt.figure(2, (20, 10))
+    plot_efd(coeff_us, n=n_dots)
+    plt.savefig(out_img_file.with_suffix('.out2.png'))
+    fig3 = plt.figure(3, (20, 10))
+    plot_efd(coeff_other, n=n_dots)
+    plt.savefig(out_img_file.with_suffix('.out3.png'))
+    plot_efd(coeff_us, n=n_dots)
     return out_img_file
 
 

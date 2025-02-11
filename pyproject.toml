@@ -13,6 +13,7 @@ dependencies = [
     "memoization>=0.4.0",
     "biopython>=1.84",
     "matplotlib>=3.10.0",
+    "pyefd>=1.6.0",
 ]
 readme = "README.md"
 requires-python = ">=3.10"
