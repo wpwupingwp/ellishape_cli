@@ -836,7 +836,7 @@ def parse_args():
                       required=True)
     arg.add_argument('-n', '-n_harmonic', dest='n_harmonic',
                       default=35, type=int, help='number of harmonic rank')
-    arg.add_argument('-n_dots', type=int, default=500,
+    arg.add_argument('-n_dots', type=int, default=512,
                      help='number of output dots')
     arg.add_argument('-out', help='output csv file')
     arg.add_argument('-out_image', action='store_true',
