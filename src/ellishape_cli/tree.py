@@ -35,6 +35,7 @@ def parse_args():
                      help='calculate shape context distance')
     arg.add_argument('-f_dist', action='store_true',
                      help='calculate Frobenius distance')
+    arg.add_argument('-pca', action='store_true')
     return arg.parse_args()
 
 
@@ -286,7 +287,7 @@ def PCA(matrix, kind_list, arg):
     eigenvalues_sorted = eigen_values[order_of_importance]
     eigenvectors_sorted = eigen_vectors[:, order_of_importance]
 
-    projected = np.matmul(std, eigenvectors_sorted[:, 1:3])
+    projected = np.matmul(std, eigenvectors_sorted[:, :2])
     effect = np.cumsum(eigenvalues_sorted) / np.sum(
         eigenvalues_sorted)
     # explained_variance = np.concatenate([[0], explained_variance])
@@ -306,6 +307,8 @@ def PCA(matrix, kind_list, arg):
     ax.set_xlabel(f'PC1 {effect[0]:.2%}')
     ax.set_ylabel(f'PC2 {effect[1]-effect[0]:.2%}')
     ax.legend()
+    plt.show()
+    input('wait')
     plt.savefig('pca.pdf')
     return
 
@@ -327,7 +330,8 @@ def get_tree():
         name_kind, kinds, kind_list = dict(), [], []
 
     read_time = timer()
-    PCA(data, kind_list, arg)
+    if arg.pca:
+        PCA(data, kind_list, arg)
     pca_time = timer()
     r_limit = sys.getrecursionlimit()
     new_limit = len(names) * 10
