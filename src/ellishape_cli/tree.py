@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
+from matplotlib import pyplot as plt
 
 from ellishape_cli.cli import check_input
 from ellishape_cli.global_vars import log
@@ -60,6 +61,8 @@ def read_csv(input_file: Path, simple_name=True):
 
 def read_kind_csv(category_csv: Path, sample_names: list) -> (dict, list):
     name_kind = dict()
+    raw_data = np.loadtxt(category_csv, delimiter=',', dtype=str, quotechar='"')
+    kind_list = raw_data[1:, 1:].flatten().tolist()
     with open(category_csv, 'r', encoding='utf-8') as f:
         next(f)
         for line in f:
@@ -83,7 +86,7 @@ def read_kind_csv(category_csv: Path, sample_names: list) -> (dict, list):
         log.critical('Continue?')
         if not input().lower().startswith('y'):
             raise SystemExit(-3)
-    return name_kind, kinds
+    return name_kind, kinds, kind_list
 
 
 def matrix2csv(m_name: str, names:list, matrix: list, arg) -> Path|None:
@@ -272,6 +275,41 @@ def matrix_to_kinds(sample_names: list, matrix: list,
     return kind_mean_matrix, kind_std_matrix
 
 
+def PCA(matrix, kind_list, arg):
+    matrix = matrix.astype(np.float64)
+    # ref: ShyBoy233
+    std = ((matrix - matrix.mean(axis=0)) / matrix.std(axis=0))
+    cov = np.cov(matrix, rowvar=False)
+    eigen_values, eigen_vectors = np.linalg.eigh(cov)
+
+    order_of_importance = np.argsort(eigen_values)[::-1]
+    eigenvalues_sorted = eigen_values[order_of_importance]
+    eigenvectors_sorted = eigen_vectors[:, order_of_importance]
+
+    projected = np.matmul(std, eigenvectors_sorted[:, 1:3])
+    effect = np.cumsum(eigenvalues_sorted) / np.sum(
+        eigenvalues_sorted)
+    # explained_variance = np.concatenate([[0], explained_variance])
+    plt.figure(figsize=(5, 5))
+    ax = plt.gca()
+    ax.axis('equal')
+    if not kind_list:
+        kind_list = list(range(len(matrix)))
+    kind_array = np.array(kind_list)
+    for kind in set(kind_list):
+        dots = projected[kind_array == kind]
+        ax.scatter(dots[:, 0], dots[:, 1], label=kind)
+    # for dot, name, color, in zip(projected, kind_list, color_label):
+    #     ax.scatter(dot[0], dot[1], label=name, c=color, marker='o')
+    # ax.scatter(projected[:, 0], projected[:, 1], c=color_label, label=kind_list,
+    #            cmap='Set1')
+    ax.set_xlabel(f'PC1 {effect[0]:.2%}')
+    ax.set_ylabel(f'PC2 {effect[1]-effect[0]:.2%}')
+    ax.legend()
+    plt.savefig('pca.pdf')
+    return
+
+
 def get_tree():
     # init args
     log.info('Start')
@@ -284,11 +322,13 @@ def get_tree():
     if arg.kind is not None:
         arg.kind = Path(arg.kind).absolute().resolve()
         check_input(arg.kind)
-        name_kind, kinds = read_kind_csv(arg.kind, names)
+        name_kind, kinds, kind_list = read_kind_csv(arg.kind, names)
     else:
-        name_kind, kinds = dict(), []
+        name_kind, kinds, kind_list = dict(), [], []
 
     read_time = timer()
+    PCA(data, kind_list, arg)
+    pca_time = timer()
     r_limit = sys.getrecursionlimit()
     new_limit = len(names) * 10
     sys.setrecursionlimit(max(r_limit, new_limit))
@@ -324,7 +364,8 @@ def get_tree():
     log.info(f'{len(data)*(len(data)-1)/2} pairs')
     log.info(f'Total time elapsed: {end - start:.2f}')
     log.info(f'Read: {read_time - start:.2f}')
-    log.info(f'Matrix: {matrix_time - read_time:.2f}')
+    log.info(f'PCA: {pca_time - read_time:.2f}')
+    log.info(f'Matrix: {matrix_time - pca_time:.2f}')
     log.info(f'Tree: {end - matrix_time:.2f}')
     sys.setrecursionlimit(r_limit)
     log.info('Done')
