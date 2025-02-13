@@ -585,17 +585,38 @@ def calc_dc_components_modify(ai, mode):
     k = ai.shape[0]
     t = calc_traversal_time(ai)
     d = calc_traversal_dist(ai)
-    Tk = t[k - 1]
+    Tk = t[k-1]
 
     if mode == 0:
         edist = d[k - 1, 0] ** 2 + d[k - 1, 1] ** 2
         if edist > 2:
-            print('error chaincode, not close form')
+            log.error('error chaincode, not close form')
             return None, None, None, None
         else:
             if edist > 0:
                 vect = (-d[k - 1, 0], -d[k - 1, 1])
+                # ai2 = ai.copy()
                 ai = np.append(ai, axis_code_map[vect])
+
+                # if vect[0] == 1 and vect[1] == 0:
+                #     ai2 = np.append(ai2, 0)
+                # elif vect[0] == 1 and vect[1] == 1:
+                #     ai2 = np.append(ai2, 1)
+                # elif vect[0] == 0 and vect[1] == 1:
+                #     ai2 = np.append(ai2, 2)
+                # elif vect[0] == -1 and vect[1] == 1:
+                #     ai2 = np.append(ai2, 3)
+                # elif vect[0] == -1 and vect[1] == 0:
+                #     ai2 = np.append(ai2, 4)
+                # elif vect[0] == -1 and vect[1] == -1:
+                #     ai2 = np.append(ai2, 5)
+                # elif vect[0] == 0 and vect[1] == -1:
+                #     ai2 = np.append(ai2, 6)
+                # elif vect[0] == 1 and vect[1] == -1:
+                #     ai2 = np.append(ai2, 7)
+                #     # todo: remove
+                # log.warning('test')
+                # assert np.linalg.norm(ai2 - ai) == 0
 
     elif mode == 1:
         if d[k - 1, 0] != 0:
@@ -803,7 +824,7 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     ax2.plot(y_t, x_t, 'r', linewidth=2)
     # ax.imshow(canvas)
     plt.savefig(out_img_file)
-    # for verify
+    # todo: for verify
     from pyefd import elliptic_fourier_descriptors, plot_efd
     coeff_other = elliptic_fourier_descriptors(max_contour, normalize=True,
                                                   order=n_harmonic)
