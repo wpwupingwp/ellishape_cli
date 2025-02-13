@@ -89,7 +89,6 @@ def gui_chain_code_func(axis_info, origin_ori):
     # print(nrow)
     # print(ncol)
     idxall = np.where(axis_info == 255)
-    log.debug(f'{idxall=}')
     # idxall=np.transpose(idxall)
     # print(idxall)
     numoftotalpoints = len(idxall[0])
@@ -280,12 +279,12 @@ def gui_chain_code_func(axis_info, origin_ori):
             backwordflag = False
 
     chain_code = chain_code_ori[:numofpoints]
-    log.debug(f'{chain_code_ori=} {chain_code_ori.shape=}')
-    log.debug(f'{chain_code=} {chain_code.shape=}')
     # endpoint = backword_points[0]
     origin = origin_ori
     # print(endpoint)
     # print((np.where(flags == 1)))
+    log.debug(f'{chain_code_ori=} {chain_code_ori.shape=}')
+    log.debug(f'{chain_code=} {chain_code.shape=}')
     return chain_code, origin
 
 
@@ -347,7 +346,7 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
 
     A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
 
-    log.info(f'{A0=}, {C0=}, {Tk=}, {T=}')
+    log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
     # Normalization procedure
     if normalized:
         ro, sc, re, y_sy, x_sy, sta, trans = option
@@ -665,26 +664,25 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     log.info(f'Image size: {img.shape}')
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # gray = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
-    img_result = np.zeros_like(gray, dtype=np.uint8)
+    # img_result = np.zeros_like(gray, dtype=np.uint8)
+    img_result = np.zeros_like(gray)
     log.debug(f'{gray=}')
     _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # find contours
-    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-                                   # cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                                   # cv2.CHAIN_APPROX_NONE)
     if not contours:
         log.error('Cannot find boundary in the image file')
         return None
     max_contour = max(contours, key=cv2.contourArea)
-    m_ = max_contour.copy()
+    # m_ = max_contour.copy()
     max_contour = np.reshape(max_contour, (
         max_contour.shape[0], max_contour.shape[2]))
     log.debug(f'{max_contour[0][0]=}')
     log.debug(f'{max_contour.shape=}')
     # log.debug(f'{max_contour=}')
-    # print(m_)
-    cv2.drawContours(img_result, [m_], 0, (255, 255, 255),
-                     thickness=3)
-
+    # draw for chain code, thickness must be equal to 1
+    cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
     # cv2.imshow('a', img_result)
     # cv2.waitKey()
     # cv2.imshow('gray', gray)
@@ -695,38 +693,13 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     boundary = max_contour
     log.debug(f'{max_contour[0].shape}')
     # chaincode, origin = gui_chain_code_func(gray, max_contour[0])
-    print(max_contour[0].shape)
-    chaincode, origin = gui_chain_code_func(gray, max_contour[0])
-    print(chaincode.shape)
-    print(chaincode[:2])
-    raise SystemExit
+    chaincode, origin = gui_chain_code_func(img_result, max_contour[0])
     log.debug(f'{chaincode.shape=}')
     log.debug(f'Chaincode shape: {chaincode.shape}')
     if len(chaincode) == 0:
         log.error('Cannot generate chain code from the image')
         return None
 
-    # Draw green line for boundary
-    # todo: opencv needn't swap x and y?
-    # max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    # img_result = cv2.polylines(img_result, [m_], isClosed=True, color=(0, 255, 0),
-    #               thickness=3)
-    #
-    # cv2.imshow('b', img_result)
-    # cv2.waitKey()
-    # x_ = calc_traversal_dist(chaincode)
-    # x = np.vstack(([0, 0], x_))
-    # print(x)
-
-    # Draw red line for chain code traversal
-    # x = x.astype(np.int32)
-    # todo: bad line
-    # log.debug(f'{x=}')
-    # cv2.imshow('bb', img_result)
-    # cv2.polylines(img_result, [x], isClosed=True, color=(0, 0, 255),
-    #               thickness=5)
-    # wait 1s
-    # cv2.waitKey(1000)
     log.debug(f'{boundary[0]=}')
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
