@@ -307,8 +307,6 @@ def PCA(matrix, kind_list, arg):
     ax.set_xlabel(f'PC1 {effect[0]:.2%}')
     ax.set_ylabel(f'PC2 {effect[1]-effect[0]:.2%}')
     ax.legend()
-    plt.show()
-    input('wait')
     plt.savefig('pca.pdf')
     return
 

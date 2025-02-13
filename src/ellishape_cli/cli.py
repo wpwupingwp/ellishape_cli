@@ -763,7 +763,7 @@ def output_csv(dots, a, b, c, d, arg):
 
 
 def plot_result(efd_result, max_contour, arg) -> Path:
-    out_img_file = arg.input.with_suffix('.out.png')
+    out_img_file = arg.out.with_suffix('.out.png')
     n_harmonic = arg.n_harmonic
     # n_dots = arg.n_dots + 1000
     from matplotlib import pyplot as plt
@@ -803,12 +803,11 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     ax2.plot(y_t, x_t, 'r', linewidth=2)
     # ax.imshow(canvas)
     plt.savefig(out_img_file)
+    # for verify
     from pyefd import elliptic_fourier_descriptors, plot_efd
     coeff_other = elliptic_fourier_descriptors(max_contour, normalize=True,
                                                   order=n_harmonic)
     coeff_us = np.concatenate([a,b,c,d], axis=1)
-    print(coeff_us.shape)
-    print(max_contour.shape)
     fig2 = plt.figure(2, (20, 10))
     plot_efd(coeff_us, n=n_dots)
     plt.savefig(out_img_file.with_suffix('.out2.png'))
