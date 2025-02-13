@@ -337,7 +337,6 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
     # parallel
     with ProcessPoolExecutor() as executor:
         # todo: send_bytes too expensive
-        # todo: calc_harmonic_coefficients_modify have useless repeat calculation
         results = list(executor.map(compute_harmonic_coefficients, [ai] * n, range(n)))
 
     for i, harmonic_coeff in enumerate(results):
@@ -437,24 +436,27 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
             c = normalized_all_1[:, 2]
             d = normalized_all_1[:, 3]
 
-            if a[0] < 0:
-                a = -a
-                d = -d
+            # todo: new?
+            # if a[0] < 0:
+            #     a = -a
+            #     d = -d
 
         if y_sy:
-            if a[1] < 0:
-                for i in range(1, n):
-                    signval = (-1) ** (((i + 1) % 2) + 1)
-                    a[i] = signval * a[i]
-                    d[i] = signval * d[i]
-                    signval = (-1) ** ((i + 1) % 2)
-                    b[i] = signval * b[i]
-                    c[i] = signval * c[i]
+            if n > 1:
+                if a[1] < -EPS:
+                    for i in range(1, n):
+                        signval = (-1) ** (((i + 1) % 2) + 1)
+                        a[i] = signval * a[i]
+                        d[i] = signval * d[i]
+                        signval = (-1) ** ((i + 1) % 2)
+                        b[i] = signval * b[i]
+                        c[i] = signval * c[i]
 
         if x_sy:
-            if c[1] < -EPS:
-                b[1:] *= -1
-                c[1:] *= -1
+            if n > 1:
+                if c[1] < -EPS:
+                    b[1:] *= -1
+                    c[1:] *= -1
 
     output = np.zeros((m, 2))
 
