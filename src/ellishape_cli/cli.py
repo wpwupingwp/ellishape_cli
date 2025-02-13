@@ -695,7 +695,11 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     boundary = max_contour
     log.debug(f'{max_contour[0].shape}')
     # chaincode, origin = gui_chain_code_func(gray, max_contour[0])
-    chaincode, origin = gui_chain_code_func(img_result, max_contour[0])
+    print(max_contour[0].shape)
+    chaincode, origin = gui_chain_code_func(gray, max_contour[0])
+    print(chaincode.shape)
+    print(chaincode[:2])
+    raise SystemExit
     log.debug(f'{chaincode.shape=}')
     log.debug(f'Chaincode shape: {chaincode.shape}')
     if len(chaincode) == 0:
