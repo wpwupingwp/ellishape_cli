@@ -1,16 +1,14 @@
 #!/usr/bin/python3
 import argparse
 import csv
-from _ast import arg
-from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 
 from ellishape_cli.global_vars import log
-from memoization import cached
-
 
 code_axis_map = {
     0: [0, 1],
@@ -33,19 +31,6 @@ axis_code_map = {
     (0, -1): 6,
     (1, -1): 7
 }
-
-
-def get_options():
-    # options for normalization, open by default
-    ro = True
-    sc = True
-    re = True
-    y_sy = True
-    x_sy = True
-    sta = True
-    trans = True
-    option = (ro, sc, re, y_sy, x_sy, sta, trans)
-    return option
 
 
 def direction2code(chain_code: np.array, start_point: np.array):
@@ -82,6 +67,23 @@ def check_input(input_file: Path, encode='utf-8'):
         log.error(f'Encode error found in {n} line, please convert it to utf-8')
         log.error(line)
         raise SystemExit(-2)
+
+def get_max_contour(gray):
+    _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    # find contours
+    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL,
+                                   # cv2.CHAIN_APPROX_SIMPLE)
+                                   cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        log.error('Cannot find boundary in the image file')
+        return None
+    max_contour = max(contours, key=cv2.contourArea)
+    # 3D to 2D
+    max_contour = np.reshape(max_contour, (
+        max_contour.shape[0], max_contour.shape[2]))
+    log.debug(f'{max_contour[0][0]=}')
+    log.debug(f'{max_contour.shape=}')
+    return max_contour
 
 
 def gui_chain_code_func(axis_info, origin_ori):
@@ -288,7 +290,6 @@ def gui_chain_code_func(axis_info, origin_ori):
     return chain_code, origin
 
 
-@cached
 def calc_traversal_dist(ai):
     x_ = 0
     y_ = 0
@@ -325,140 +326,123 @@ def compute_harmonic_coefficients(ai, harmonic_index):
     return calc_harmonic_coefficients_modify(ai, harmonic_index+1, 0)
 
 
-@cached
-def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
+def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
+              trans=True):
     EPS = 1e-10
-    a = np.zeros(n)
-    b = np.zeros(n)
-    c = np.zeros(n)
-    d = np.zeros(n)
+    a, b, c, d, A0, C0 = efd
+    n = a.shape[0]
+    # ro, sc, re, y_sy, x_sy, sta, trans = [False]*7
+    # Remove DC components
+    if trans:
+        A0 = 0
+        C0 = 0
 
-    # parallel
-    with ProcessPoolExecutor() as executor:
-        # todo: send_bytes too expensive
-        results = list(executor.map(compute_harmonic_coefficients, [ai] * n, range(n)))
+    if re:
+        CrossProduct = a[0] * d[0] - c[0] * b[0]
+        if CrossProduct < 0:
+            b = -b
+            d = -d
 
-    for i, harmonic_coeff in enumerate(results):
-        a[i] = harmonic_coeff[0].item()
-        b[i] = harmonic_coeff[1].item()
-        c[i] = harmonic_coeff[2].item()
-        d[i] = harmonic_coeff[3].item()
+    tan_theta2 = 2 * (a[0] * b[0] + c[0] * d[0]) / (
+            a[0] ** 2 + c[0] ** 2 - b[0] ** 2 - d[0] ** 2)
+    theta1 = 0.5 * np.arctan(tan_theta2)
+    if theta1 < 0:
+        theta1 += np.pi / 2
+    sin_2theta = np.sin(2 * theta1)
+    cos_2theta = np.cos(2 * theta1)
+    cos_theta_square = (1 + cos_2theta) / 2
+    sin_theta_square = (1 - cos_2theta) / 2
 
-    A0, C0, Tk, T = calc_dc_components_modify(ai, 0)
+    axis_theta1 = (a[0] ** 2 + c[0] ** 2) * cos_theta_square + (
+            a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
+                          b[0] ** 2 + d[0] ** 2) * sin_theta_square
+    axis_theta2 = (a[0] ** 2 + c[0] ** 2) * sin_theta_square - (
+            a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
+                          b[0] ** 2 + d[0] ** 2) * cos_theta_square
 
-    log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
-    # Normalization procedure
-    if normalized:
-        ro, sc, re, y_sy, x_sy, sta, trans = option
-        # ro, sc, re, y_sy, x_sy, sta, trans = [False]*7
-        # Remove DC components
-        if trans:
-            A0 = 0
-            C0 = 0
+    # print(axis_theta1)
+    # print(axis_theta2)
+    if axis_theta1 < axis_theta2:
+        theta1 += np.pi / 2
 
-        if re:
-            CrossProduct = a[0] * d[0] - c[0] * b[0]
-            if CrossProduct < 0:
-                b = -b
-                d = -d
+    costh1 = np.cos(theta1)
+    sinth1 = np.sin(theta1)
+    a_star_1 = costh1 * a[0] + sinth1 * b[0]
+    c_star_1 = costh1 * c[0] + sinth1 * d[0]
+    psi1 = np.arctan(np.abs(c_star_1 / a_star_1))
 
-        tan_theta2 = 2 * (a[0] * b[0] + c[0] * d[0]) / (
-                a[0] ** 2 + c[0] ** 2 - b[0] ** 2 - d[0] ** 2)
-        theta1 = 0.5 * np.arctan(tan_theta2)
-        if theta1 < 0:
-            theta1 += np.pi / 2
-        sin_2theta = np.sin(2 * theta1)
-        cos_2theta = np.cos(2 * theta1)
-        cos_theta_square = (1 + cos_2theta) / 2
-        sin_theta_square = (1 - cos_2theta) / 2
+    if c_star_1 > 0 > a_star_1:
+        psi1 = np.pi - psi1
+    if c_star_1 < 0 and a_star_1 < 0:
+        psi1 = np.pi + psi1
+    if c_star_1 < 0 < a_star_1:
+        psi1 = np.pi * 2 - psi1
 
-        axis_theta1 = (a[0] ** 2 + c[0] ** 2) * cos_theta_square + (
-                a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
-                              b[0] ** 2 + d[0] ** 2) * sin_theta_square
-        axis_theta2 = (a[0] ** 2 + c[0] ** 2) * sin_theta_square - (
-                a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
-                              b[0] ** 2 + d[0] ** 2) * cos_theta_square
+    E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
+    # print(E)
 
-        # print(axis_theta1)
-        # print(axis_theta2)
-        if axis_theta1 < axis_theta2:
-            theta1 += np.pi / 2
+    if sc:
+        a /= E
+        b /= E
+        c /= E
+        d /= E
 
-        costh1 = np.cos(theta1)
-        sinth1 = np.sin(theta1)
-        a_star_1 = costh1 * a[0] + sinth1 * b[0]
-        c_star_1 = costh1 * c[0] + sinth1 * d[0]
-        psi1 = np.arctan(np.abs(c_star_1 / a_star_1))
+    cospsi1 = np.cos(psi1)
+    sinpsi1 = np.sin(psi1)
+    normalized_all = np.zeros((n, 4))
 
-        if c_star_1 > 0 > a_star_1:
-            psi1 = np.pi - psi1
-        if c_star_1 < 0 and a_star_1 < 0:
-            psi1 = np.pi + psi1
-        if c_star_1 < 0 < a_star_1:
-            psi1 = np.pi * 2 - psi1
+    if ro:
+        for i in range(n):
+            normalized = np.dot([[cospsi1, sinpsi1], [-sinpsi1, cospsi1]],
+                                [[a[i], b[i]], [c[i], d[i]]])
+            # print(normalized.reshape(1, 4))
+            normalized_all[i] = normalized.reshape(1, 4)
+        a = normalized_all[:, 0]
+        b = normalized_all[:, 1]
+        c = normalized_all[:, 2]
+        d = normalized_all[:, 3]
 
-        E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
-        # print(E)
+    normalized_all_1 = np.zeros((n, 4))
 
-        if sc:
-            a /= E
-            b /= E
-            c /= E
-            d /= E
+    if sta:
+        for i in range(n):
+            normalized_1 = np.dot([[a[i], b[i]], [c[i], d[i]]], [
+                [np.cos(theta1 * (i + 1)), -np.sin(theta1 * (i + 1))],
+                [np.sin(theta1 * (i + 1)), np.cos(theta1 * (i + 1))]])
+            normalized_all_1[i, :] = normalized_1.reshape(1, 4)
+            # print(normalized_1)
+        a = normalized_all_1[:, 0]
+        b = normalized_all_1[:, 1]
+        c = normalized_all_1[:, 2]
+        d = normalized_all_1[:, 3]
 
-        cospsi1 = np.cos(psi1)
-        sinpsi1 = np.sin(psi1)
-        normalized_all = np.zeros((n, 4))
+        # todo: new?
+        # if a[0] < 0:
+        #     a = -a
+        #     d = -d
 
-        if ro:
-            for i in range(n):
-                normalized = np.dot([[cospsi1, sinpsi1], [-sinpsi1, cospsi1]],
-                                    [[a[i], b[i]], [c[i], d[i]]])
-                # print(normalized.reshape(1, 4))
-                normalized_all[i] = normalized.reshape(1, 4)
-            a = normalized_all[:, 0]
-            b = normalized_all[:, 1]
-            c = normalized_all[:, 2]
-            d = normalized_all[:, 3]
+    if y_sy:
+        if n > 1:
+            if a[1] < -EPS:
+                for i in range(1, n):
+                    signval = (-1) ** (((i + 1) % 2) + 1)
+                    a[i] = signval * a[i]
+                    d[i] = signval * d[i]
+                    signval = (-1) ** ((i + 1) % 2)
+                    b[i] = signval * b[i]
+                    c[i] = signval * c[i]
 
-        normalized_all_1 = np.zeros((n, 4))
+    if x_sy:
+        if n > 1:
+            if c[1] < -EPS:
+                b[1:] *= -1
+                c[1:] *= -1
 
-        if sta:
-            for i in range(n):
-                normalized_1 = np.dot([[a[i], b[i]], [c[i], d[i]]], [
-                    [np.cos(theta1 * (i + 1)), -np.sin(theta1 * (i + 1))],
-                    [np.sin(theta1 * (i + 1)), np.cos(theta1 * (i + 1))]])
-                normalized_all_1[i, :] = normalized_1.reshape(1, 4)
-                # print(normalized_1)
-            a = normalized_all_1[:, 0]
-            b = normalized_all_1[:, 1]
-            c = normalized_all_1[:, 2]
-            d = normalized_all_1[:, 3]
+    return a, b, c, d, A0, C0
 
-            # todo: new?
-            # if a[0] < 0:
-            #     a = -a
-            #     d = -d
 
-        if y_sy:
-            if n > 1:
-                if a[1] < -EPS:
-                    for i in range(1, n):
-                        signval = (-1) ** (((i + 1) % 2) + 1)
-                        a[i] = signval * a[i]
-                        d[i] = signval * d[i]
-                        signval = (-1) ** ((i + 1) % 2)
-                        b[i] = signval * b[i]
-                        c[i] = signval * c[i]
-
-        if x_sy:
-            if n > 1:
-                if c[1] < -EPS:
-                    b[1:] *= -1
-                    c[1:] *= -1
-
+def get_curve_old(a, b, c, d, A0, C0, Tk, T, n, m=512):
     output = np.zeros((m, 2))
-
     for t in range(m):
         x_ = 0.0
         y_ = 0.0
@@ -471,10 +455,9 @@ def fourier_approx_norm_modify(ai, n, m, normalized, mode, option):
         output[t, 0] = np.array(A0 + x_).item()
         output[t, 1] = np.array(C0 + y_).item()
 
-    return output, a, b, c, d
+    return output
 
 
-@cached
 def calc_traversal_time(ai):
     t_ = 0
     if np.isscalar(ai):
@@ -655,41 +638,13 @@ def calc_dc_components_modify(ai, mode):
     return A0, C0, Tk, T
 
 
-def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
-    # read color images and convert to gray
-    # binary
-    img = cv2.imread(str(img_file), cv2.IMREAD_COLOR)
-    # todo: resize?
-    # img = cv2.resize(img, None, fx=0.125, fy=0.125)
-    log.info(f'Image size: {img.shape}')
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # gray = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
-    # img_result = np.zeros_like(gray, dtype=np.uint8)
+def get_chain_code(gray, max_contour) -> (np.ndarray|None, np.ndarray|None):
     img_result = np.zeros_like(gray)
-    log.debug(f'{gray=}')
-    _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-    # find contours
-    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL,
-                                   # cv2.CHAIN_APPROX_SIMPLE)
-                                   cv2.CHAIN_APPROX_NONE)
-    if not contours:
-        log.error('Cannot find boundary in the image file')
-        return None
-    max_contour = max(contours, key=cv2.contourArea)
-    # m_ = max_contour.copy()
-    max_contour = np.reshape(max_contour, (
-        max_contour.shape[0], max_contour.shape[2]))
-    log.debug(f'{max_contour[0][0]=}')
-    log.debug(f'{max_contour.shape=}')
-    # log.debug(f'{max_contour=}')
-    # draw for chain code, thickness must be equal to 1
     cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
     # cv2.imshow('a', img_result)
     # cv2.waitKey()
     # cv2.imshow('gray', gray)
     max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    log.debug(f'{max_contour[0][0]=}')
-    log.debug(f'{max_contour.shape=}')
     # log.debug(f'{max_contour=}')
     boundary = max_contour
     log.debug(f'{max_contour[0].shape}')
@@ -699,7 +654,7 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     log.debug(f'Chaincode shape: {chaincode.shape}')
     if len(chaincode) == 0:
         log.error('Cannot generate chain code from the image')
-        return None
+        return None, None
 
     log.debug(f'{boundary[0]=}')
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
@@ -716,10 +671,29 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
 
 
 def get_efd_from_chain_code(chain_code, n_order):
-    pass
+    a = np.zeros(n_order)
+    b = np.zeros(n_order)
+    c = np.zeros(n_order)
+    d = np.zeros(n_order)
+
+    # parallel
+    with ProcessPoolExecutor() as executor:
+        # todo: send_bytes too expensive
+        results = list(executor.map(compute_harmonic_coefficients, [chain_code] * n_order, range(n_order)))
+
+    for i, harmonic_coeff in enumerate(results):
+        a[i] = harmonic_coeff[0].item()
+        b[i] = harmonic_coeff[1].item()
+        c[i] = harmonic_coeff[2].item()
+        d[i] = harmonic_coeff[3].item()
+
+    A0, C0, Tk, T = calc_dc_components_modify(chain_code, 0)
+
+    log.debug(f'{A0=}, {C0=}, {Tk=}, {T=}')
+    return a, b, c, d, A0, C0, Tk, T
 
 
-def get_ef_from_contour(contour, n_order):
+def get_efd_from_contour(contour, n_order):
     pass
 
 
@@ -810,9 +784,8 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     out_img_file = arg.out.with_suffix('.out.png')
     n_harmonic = arg.n_harmonic
     # n_dots = arg.n_dots + 1000
-    from matplotlib import pyplot as plt
     n_dots = arg.n_dots
-    dots, a, b, c, d = efd_result
+    a, b, c, d, A0, C0 = efd_result
     # efd = np.concatenate([a,b,c,d], axis=1)
     canvas = cv2.imread(str(arg.input), cv2.IMREAD_COLOR)
     canvas = cv2.resize(canvas, (canvas.shape[1]//4, canvas.shape[0]//4))
@@ -882,19 +855,26 @@ def cli_main():
     else:
         arg.out = Path(arg.out).absolute()
 
-    chain_code_result, max_contour = get_chain_code(arg.input)
+    # read and convert input
+    # todo: resize?
+    # img = cv2.resize(img, None, fx=0.125, fy=0.125)
+    gray = cv2.imread(str(arg.input), cv2.IMREAD_GRAYSCALE)
+    log.info(f'Image size: {gray.shape}')
+    # get chain_code from contour
+    max_contour = get_max_contour(gray)
+    chain_code_result, max_contour = get_chain_code(gray, max_contour)
     if chain_code_result is None:
         log.error('Quit')
         return -1
-    option = get_options()
-    efd_result = fourier_approx_norm_modify(
-        chain_code_result, arg.n_harmonic, arg.n_dots, 1, 0, option)
-    dots, a, b, c, d =  efd_result
+    efd_result = get_efd_from_chain_code(chain_code_result, arg.n_harmonic)
+    a, b, c, d, A0, C0, Tk, T = efd_result
+    normalized_efd = normalize([a, b, c, d, A0, C0])
+    dots = get_curve_old(a, b, c, d, A0, C0, Tk, T, arg.n_harmonic, arg.n_dots)
     output_csv(dots, a, b, c, d, arg)
     if arg.out_image:
-        out_img_file = plot_result(efd_result, max_contour, arg)
+        out_img_file = plot_result(normalized_efd, max_contour, arg)
         log.info(f'Output data: {arg.out}')
-        log.info(f'Output data: {arg.out.with_suffix(".2.csv")}')
+        log.info(f'Output data: {arg.out.with_suffix(".dot.csv")}')
         log.info(f'Output image: {out_img_file}')
         log.debug('Write: contour')
         log.debug('Green: boundary')
@@ -902,6 +882,7 @@ def cli_main():
         log.debug('Red: chain code approximate')
         log.debug('Yellow: chain code approximate with normalization')
     log.info('Done')
+    return
 
 
 if __name__ == '__main__':
