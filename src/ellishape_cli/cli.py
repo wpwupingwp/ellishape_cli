@@ -669,8 +669,9 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     log.debug(f'{gray=}')
     _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # find contours
-    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                                   # cv2.CHAIN_APPROX_NONE)
+    contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL,
+                                   # cv2.CHAIN_APPROX_SIMPLE)
+                                   cv2.CHAIN_APPROX_NONE)
     if not contours:
         log.error('Cannot find boundary in the image file')
         return None
@@ -714,6 +715,14 @@ def get_chain_code(img_file: Path) -> (np.ndarray|None, np.ndarray|None):
     return chaincode, boundary
 
 
+def get_efd_from_chain_code(chain_code, n_order):
+    pass
+
+
+def get_ef_from_contour(contour, n_order):
+    pass
+
+
 def output_csv(dots, a, b, c, d, arg):
     n_harmonic = arg.n_harmonic
     n_dots = arg.n_dots
@@ -742,7 +751,7 @@ def output_csv(dots, a, b, c, d, arg):
     xy.extend(dots.flatten().tolist())
 
     # FFT coordinate
-    out_file2 = out_file.with_suffix('.2.csv')
+    out_file2 = out_file.with_suffix('.dot.csv')
 
     if out_file.exists():
         with open(out_file, 'a', encoding='utf-8', newline='') as out:
@@ -839,7 +848,7 @@ def cli_main():
     arg.input = Path(arg.input).absolute()
     log.info(f'Input {arg.input}')
     if arg.out is None:
-        arg.out = arg.input.parent / 'out.csv'
+        arg.out = arg.input.with_suffix('.csv')
     else:
         arg.out = Path(arg.out).absolute()
 
