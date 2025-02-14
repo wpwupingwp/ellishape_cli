@@ -75,7 +75,6 @@ def get_max_contour(gray):
                                    # cv2.CHAIN_APPROX_SIMPLE)
                                    cv2.CHAIN_APPROX_NONE)
     if not contours:
-        log.error('Cannot find boundary in the image file')
         return None
     max_contour = max(contours, key=cv2.contourArea)
     # 3D to 2D
@@ -441,7 +440,7 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     return a, b, c, d, A0, C0
 
 
-def get_curve_old(a, b, c, d, A0, C0, Tk, T, n, m=512):
+def get_curve_old(a, b, c, d, A0, C0, Tk, T, n, m):
     output = np.zeros((m, 2))
     for t in range(m):
         x_ = 0.0
@@ -694,10 +693,29 @@ def get_efd_from_chain_code(chain_code, n_order):
 
 
 def get_efd_from_contour(contour, n_order):
-    pass
+    # link final to start
+    contour = np.concatenate([contour, contour[[0], :]], axis=0)
+    dxy = np.diff(contour, axis=0)
+    dt = np.sqrt((dxy ** 2).sum(axis=1))
+    t = np.concatenate([([0.0]), np.cumsum(dt)])
+    # total length
+    T = t[-1]
+    phi = (2 * np.pi * t) / T
+    orders = np.arange(1, n_order + 1)
+    consts = T / (2 * orders * orders * np.pi * np.pi)
+    phi = phi * orders.reshape((n_order, -1))
+
+    d_cos_phi = np.cos(phi[:, 1:]) - np.cos(phi[:, :-1])
+    d_sin_phi = np.sin(phi[:, 1:]) - np.sin(phi[:, :-1])
+
+    a = consts * np.sum((dxy[:, 0] / dt) * d_cos_phi, axis=1)
+    b = consts * np.sum((dxy[:, 0] / dt) * d_sin_phi, axis=1)
+    c = consts * np.sum((dxy[:, 1] / dt) * d_cos_phi, axis=1)
+    d = consts * np.sum((dxy[:, 1] / dt) * d_sin_phi, axis=1)
+    return a, b, c, d, 0, 0, 0, 0
 
 
-def eft_to_curve(a, b, c, d, n_order: int, n_dots=512, A0=0, C0=0):
+def get_curve_from_efd(a, b, c, d, n_order: int, n_dots: int, A0=0, C0=0):
     """
     Convert efd coefficients to dots of curve
     Args:
@@ -798,14 +816,14 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     ax2.set_aspect('equal')
     # ax2.set_xlim(-2, 2)
     # ax2.set_ylim(-2, 2)
-    dots_0 = eft_to_curve(a, b, c, d, 1, n_dots=512)
-    dots_t = eft_to_curve(a, b, c, d, n_harmonic, n_dots=512)
+    dots_0 = get_curve_from_efd(a, b, c, d, 1, n_dots=arg.n_dots)
+    dots_t = get_curve_from_efd(a, b, c, d, n_harmonic, n_dots=arg.n_dots)
     ax2.plot(dots_0[:, 0], dots_0[:, 1], 'b--', linewidth=1)
     ax2.plot(dots_t[:, 0], dots_t[:, 1], 'r', linewidth=2)
     ax2.plot(dots_t[0, 0], dots_t[0, 1], 'bo', linewidth=1, alpha=0.5)
     plt.savefig(out_img_file)
     # # # todo: for verify
-    # from pyefd import elliptic_fourier_descriptors, plot_efd
+    from pyefd import elliptic_fourier_descriptors, plot_efd
     # coeff_other = elliptic_fourier_descriptors(max_contour, normalize=True,
     #                                               order=n_harmonic)
     # a = np.reshape(a, (n_harmonic, 1))
@@ -839,6 +857,8 @@ def parse_args():
                       default=35, type=int, help='number of harmonic rank')
     arg.add_argument('-n_dots', type=int, default=512,
                      help='number of output dots')
+    arg.add_argument('-method', choices=('chain_code', 'dots'), default='dots')
+    arg.add_argument('-skip_normalize', action='store_true')
     arg.add_argument('-out', help='output csv file')
     arg.add_argument('-out_image', action='store_true',
                      help='output result image')
@@ -848,7 +868,13 @@ def parse_args():
 def cli_main():
     # one leaf per image
     arg = parse_args()
-    arg.input = Path(arg.input).absolute()
+    log.info(str(arg))
+    arg.input = Path(arg.input).resolve().absolute()
+    if not arg.input.exists() or not arg.input.is_file():
+        log.error(f'Input {arg.input} does not exist or is not a valid file')
+        return -1
+    else:
+        log.info(arg.input)
     log.info(f'Input {arg.input}')
     if arg.out is None:
         arg.out = arg.input.with_suffix('.csv')
@@ -861,26 +887,47 @@ def cli_main():
     gray = cv2.imread(str(arg.input), cv2.IMREAD_GRAYSCALE)
     log.info(f'Image size: {gray.shape}')
     # get chain_code from contour
+    log.info('Finding contours')
     max_contour = get_max_contour(gray)
-    chain_code_result, max_contour = get_chain_code(gray, max_contour)
-    if chain_code_result is None:
-        log.error('Quit')
+    if max_contour is None:
+        log.error('Cannot find boundary in the image file')
         return -1
-    efd_result = get_efd_from_chain_code(chain_code_result, arg.n_harmonic)
+    else:
+        log.info('Found boundary of the shape')
+    if arg.method == 'chain_code':
+        log.info('Getting chain code')
+        chain_code_result, max_contour = get_chain_code(gray, max_contour)
+        log.info('Got valid chain code')
+        if chain_code_result is None:
+            log.error('Quit')
+            return -1
+        # get efd
+        log.info('Getting efd')
+        efd_result = get_efd_from_chain_code(chain_code_result, arg.n_harmonic)
+    else:
+        log.info('Getting efd')
+        efd_result = get_efd_from_contour(max_contour, arg.n_harmonic)
     a, b, c, d, A0, C0, Tk, T = efd_result
-    normalized_efd = normalize([a, b, c, d, A0, C0])
-    dots = get_curve_old(a, b, c, d, A0, C0, Tk, T, arg.n_harmonic, arg.n_dots)
-    output_csv(dots, a, b, c, d, arg)
+    if not arg.skip_normalize:
+        log.info('Normalizing efd')
+        normalized_efd = normalize([a, b, c, d, A0, C0])
+    else:
+        normalized_efd = [a, b, c, d, A0, C0]
+    # draw
+    a_new, b_new, c_new, d_new, A0_new, C0_new = normalized_efd
+    if arg.method == 'chain_code':
+        dots = get_curve_old(a_new, b_new, c_new, d_new, A0_new, C0_new, Tk, T,
+                             arg.n_harmonic, arg.n_dots)
+    else:
+        dots = get_curve_from_efd(a_new, b_new, c_new, d_new, arg.n_harmonic, arg.n_dots)
+    # plt.plot(dots[:, 0], dots[:, 1], 'r')
+    # plt.show()
+    output_csv(dots, a_new, b_new, c_new, d_new, arg)
+    log.info(f'Output data: {arg.out.resolve()}')
+    log.info(f'Output data: {arg.out.with_suffix(".dot.csv").resolve()}')
     if arg.out_image:
         out_img_file = plot_result(normalized_efd, max_contour, arg)
-        log.info(f'Output data: {arg.out}')
-        log.info(f'Output data: {arg.out.with_suffix(".dot.csv")}')
-        log.info(f'Output image: {out_img_file}')
-        log.debug('Write: contour')
-        log.debug('Green: boundary')
-        log.debug('Blue: chain code')
-        log.debug('Red: chain code approximate')
-        log.debug('Yellow: chain code approximate with normalization')
+        log.info(f'Output image: {out_img_file.resolve()}')
     log.info('Done')
     return
 
