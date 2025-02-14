@@ -723,25 +723,39 @@ def get_ef_from_contour(contour, n_order):
     pass
 
 
-def eft_to_curve(efd: np.ndarray, n_order: int, n_dots=512, A0=0, C0=0):
+def eft_to_curve(a, b, c, d, n_order: int, n_dots=512, A0=0, C0=0):
     """
     Convert efd coefficients to dots of curve
     Args:
-        efd: N*4 matrix
-        n_order: int
+        a, b, c, d: [n_order*1] array
+        n_order: how many order of coefficients to use
         A0:
         C0:
     Returns:
         dots: [n_dots*2] matrix
     """
-    t = np.linspace(0, 1.0, num=n_dots, endpoint=False)  # [M] M: number of points
-    n = np.arange(1, n_order + 1).reshape(
-        (-1, 1))  # efficients selected to reconstruct
-    x_t0 = np.sum(
-        a * np.cos(2 * n[0] * np.pi * t) + b * np.sin(2 * n[0] * np.pi * t), axis=0)
-    y_t0 = np.sum(
-        c * np.cos(2 * n[0] * np.pi * t) + d * np.sin(2 * n[0] * np.pi * t), axis=0)
-    pass
+    assert a.shape[0] == b.shape[0] == c.shape[0] == d.shape[0]
+    total_order = a.shape[0]
+    a = np.reshape(a, (total_order, 1))
+    b = np.reshape(b, (total_order, 1))
+    c = np.reshape(c, (total_order, 1))
+    d = np.reshape(d, (total_order, 1))
+    # a = efd[:, 0]
+    # b = efd[:, 1]
+    # c = efd[:, 2]
+    # d = efd[:, 3]
+    t = np.linspace(0, 1.0, num=n_dots, endpoint=False)
+    n = np.arange(1, n_order + 1).reshape( (-1, 1))
+    x_t = A0 + np.sum(
+        a * np.cos(2 * n[:n_order] * np.pi * t) +
+        b * np.sin(2 * n[:n_order] * np.pi * t),
+        axis=0)
+    y_t = C0 + np.sum(
+        c * np.cos(2 * n[:n_order] * np.pi * t) +
+        d * np.sin(2 * n[:n_order] * np.pi * t),
+        axis=0)
+    dots = np.concatenate([x_t.reshape(-1, 1), y_t.reshape(-1, 1)], axis=1)
+    return dots
 
 
 def output_csv(dots, a, b, c, d, arg):
@@ -799,69 +813,39 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     from matplotlib import pyplot as plt
     n_dots = arg.n_dots
     dots, a, b, c, d = efd_result
-    a = np.reshape(a, (n_harmonic, 1))
-    b = np.reshape(b, (n_harmonic, 1))
-    c = np.reshape(c, (n_harmonic, 1))
-    d = np.reshape(d, (n_harmonic, 1))
+    # efd = np.concatenate([a,b,c,d], axis=1)
     canvas = cv2.imread(str(arg.input), cv2.IMREAD_COLOR)
     canvas = cv2.resize(canvas, (canvas.shape[1]//4, canvas.shape[0]//4))
     # ax = plt.subplot2grid((2, canvas.shape[0]//2), (canvas.shape[0], 2%canvas.shape[0]//2))
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
-    # ax1 = plt.subplot2grid((1,2), (0,0))
-    # height, width = 1024, 1024
-    # canvas1 = np.zeros((height, width, 3))
-    # canvas2 = np.copy(canvas1)
-    # cv2.polylines(canvas, [chain_points], False, (255, 0, 0), 2)
-    # A0=C0=01000
     ax1.set_title('contour')
     ax1.set_aspect('equal')
-    ax1.plot(max_contour[:, 0], max_contour[:, 1], 'o', linewidth=2)
-    # cv2.drawContours(canvas, [max_contour], 0, (0, 255, 0),
-    #                  thickness=5)
-    t = np.linspace(0, 1.0, num=n_dots, endpoint=False)  # [M] M: number of points
-    n = np.arange(1, n_harmonic + 1).reshape(
-        (-1, 1))  # efficients selected to reconstruct
-    x_t0 = np.sum(
-        a * np.cos(2 * n[0] * np.pi * t) + b * np.sin(2 * n[0] * np.pi * t), axis=0)
-    y_t0 = np.sum(
-        c * np.cos(2 * n[0] * np.pi * t) + d * np.sin(2 * n[0] * np.pi * t), axis=0)
-    x_t = np.sum(
-        a * np.cos(2 * n * np.pi * t) + b * np.sin(2 * n * np.pi * t), axis=0)
-    y_t = np.sum(
-        c * np.cos(2 * n * np.pi * t) + d * np.sin(2 * n * np.pi * t), axis=0)
-    # ax2= plt.subplot2grid((1,2), (0,1))
+    ax1.plot(max_contour[:, 0], max_contour[:, 1], 'o', linewidth=1)
     ax2.set_title('Normalized ellipse fourier coefficients')
     ax2.set_aspect('equal')
     # ax2.set_xlim(-2, 2)
     # ax2.set_ylim(-2, 2)
-    ax2.plot(x_t0, y_t0, 'b--', linewidth=1)
-    ax2.plot(x_t, y_t, 'r', linewidth=2)
-    ax2.plot(x_t[0], y_t[0], 'bo', linewidth=1, alpha=0.5)
-    # ax2.annotate('$x_0,y_0$',
-    #              xy=(x_t[1], y_t[1]), xytext=(x_t[0], y_t[0]),
-    #              arrowprops=dict(arrowstyle="->",
-    #                              connectionstyle="arc3,rad=.5",
-    #                              fc="blue", ec="blue",
-    #                              alpha=0.5,
-    #                              lw=1)
-    #              )
-    # ax.imshow(canvas)
+    dots_0 = eft_to_curve(a, b, c, d, 1, n_dots=512)
+    dots_t = eft_to_curve(a, b, c, d, n_harmonic, n_dots=512)
+    ax2.plot(dots_0[:, 0], dots_0[:, 1], 'b--', linewidth=1)
+    ax2.plot(dots_t[:, 0], dots_t[:, 1], 'r', linewidth=2)
+    ax2.plot(dots_t[0, 0], dots_t[0, 1], 'bo', linewidth=1, alpha=0.5)
     plt.savefig(out_img_file)
     # # # todo: for verify
     # from pyefd import elliptic_fourier_descriptors, plot_efd
     # coeff_other = elliptic_fourier_descriptors(max_contour, normalize=True,
     #                                               order=n_harmonic)
+    # a = np.reshape(a, (n_harmonic, 1))
+    # b = np.reshape(b, (n_harmonic, 1))
+    # c = np.reshape(c, (n_harmonic, 1))
+    # d = np.reshape(d, (n_harmonic, 1))
     # coeff_us = np.concatenate([a,b,c,d], axis=1)
     # a2, b2, c2, d2 = coeff_other.T
-    # a2 = np.reshape(a2, (n_harmonic, 1))
-    # b2 = np.reshape(b2, (n_harmonic, 1))
-    # c2 = np.reshape(c2, (n_harmonic, 1))
-    # d2 = np.reshape(d2, (n_harmonic, 1))
-    # x_t2 = np.sum(
-    #     a2 * np.cos(2 * n[0] * np.pi * t) + b2 * np.sin(2 * n[0] * np.pi * t), axis=0)
-    # y_t2 = np.sum(
-    #     c2 * np.cos(2 * n[0] * np.pi * t) + d2 * np.sin(2 * n[0] * np.pi * t), axis=0)
-    # ax2.plot(x_t2, y_t2, 'b--')
+    # dots_2 = eft_to_curve(a2, b2, c2, d2, n_harmonic, n_dots=512)
+    # dots_3 = eft_to_curve(a2, b2, c2, d2, 1, n_dots=512)
+    # ax2.plot(dots_2[:, 0], dots_2[:, 1], 'y')
+    # ax2.plot(dots_3[:, 0], dots_3[:, 1], 'y--')
+    # ax2.plot(dots_3[0, 0], dots_3[0, 1], 'co', linewidth=1, alpha=0.5)
     # plt.show()
     # fig2 = plt.figure(2, (20, 10))
     # plot_efd(coeff_us, n=n_dots)
