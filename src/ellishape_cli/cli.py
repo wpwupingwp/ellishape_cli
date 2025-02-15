@@ -637,7 +637,7 @@ def calc_dc_components_modify(ai, mode):
     return A0, C0, Tk, T
 
 
-def get_chain_code(gray, max_contour) -> (np.ndarray|None, np.ndarray|None):
+def get_chain_code(gray, max_contour) -> (np.ndarray|None):
     img_result = np.zeros_like(gray)
     cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
     # cv2.imshow('a', img_result)
@@ -649,11 +649,12 @@ def get_chain_code(gray, max_contour) -> (np.ndarray|None, np.ndarray|None):
     log.debug(f'{max_contour[0].shape}')
     # chaincode, origin = gui_chain_code_func(gray, max_contour[0])
     chaincode, origin = gui_chain_code_func(img_result, max_contour[0])
+    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
     log.debug(f'{chaincode.shape=}')
     log.debug(f'Chaincode shape: {chaincode.shape}')
     if len(chaincode) == 0:
         log.error('Cannot generate chain code from the image')
-        return None, None
+        return None
 
     log.debug(f'{boundary[0]=}')
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
@@ -661,12 +662,12 @@ def get_chain_code(gray, max_contour) -> (np.ndarray|None, np.ndarray|None):
     if not is_closed:
         log.error(f'Chain code is not closed')
         log.error(f'Chain code length: {chaincode.shape[0]}')
-        return None, None
+        return None
     else:
         log.debug(f'Chain code is closed')
         log.debug(f'{chaincode=}')
         log.debug(f'{chaincode.shape=}')
-    return chaincode, boundary
+    return chaincode
 
 
 def get_efd_from_chain_code(chain_code, n_order):
@@ -693,7 +694,7 @@ def get_efd_from_chain_code(chain_code, n_order):
 
 
 def get_efd_from_contour(contour, n_order):
-    # link final to start
+    # link final to start ?
     contour = np.concatenate([contour, contour[[0], :]], axis=0)
     dxy = np.diff(contour, axis=0)
     dt = np.sqrt((dxy ** 2).sum(axis=1))
@@ -754,55 +755,45 @@ def output_csv(dots, a, b, c, d, arg):
     n_harmonic = arg.n_harmonic
     n_dots = arg.n_dots
     input_file = Path(arg.input)
-    out_file = Path(arg.out)
+    efd_file = Path(arg.out)
+    dot_file = efd_file.with_suffix('.dot.csv')
 
-    t = np.transpose([a, b, c, d])
-    Hs = np.reshape(t, (1, -1))
-    coffs = [["filepath"]]
-    cols = n_harmonic * 4
-    matrix = []
-    for col in range(1, cols + 1):
-        letter = chr(ord('a') + (col - 1) % 4)
-        number = str((col - 1) // 4 + 1)
-        matrix.append(letter + number)
+    # t = np.transpose([a, b, c, d])
+    # Hs = np.reshape(t, (1, -1))
+    Hs = np.column_stack((a, b, c, d)).ravel()
+    efd_header = ["filepath"] + [
+        f"{chr(ord('a') + (col - 1) % 4)}{(col - 1) // 4 + 1}"
+        for col in range(1, n_harmonic * 4 + 1)
+    ]
+    dot_header = ['filepath'] + [
+        f"{axis}{i}" for i in range(1, n_dots + 1) for axis in ('x', 'y')
+    ]
+    efd_data = [str(input_file.absolute())] + Hs.tolist()
+    dot_data = [str(input_file.absolute())] + dots.ravel().tolist()
 
-    coffs[0].extend(matrix)
-    coffs.append([str(input_file.absolute())])
-    coffs[1].extend(Hs.flatten().tolist())
-
-    # 1000 *2
-    header2 = ['filepath']
-    for i in range(1, n_dots+1):
-        header2.extend([f'x{i}', f'y{i}'])
-    xy = [input_file.absolute(),]
-    xy.extend(dots.flatten().tolist())
-
-    # FFT coordinate
-    out_file2 = out_file.with_suffix('.dot.csv')
-
-    if out_file.exists():
-        with open(out_file, 'a', encoding='utf-8', newline='') as out:
-            writer = csv.writer(out)
-            writer.writerows(coffs[1:])
-        with open(out_file2, 'a', encoding='utf-8', newline='') as out:
-            writer = csv.writer(out)
-            writer.writerow(xy)
+    if efd_file.exists():
+        log.info('Append data to existed file')
+        with open(efd_file, 'a', encoding='utf-8', newline='') as out1:
+            writer = csv.writer(out1)
+            writer.writerow(efd_data)
+        with open(dot_file, 'a', encoding='utf-8', newline='') as out2:
+            writer = csv.writer(out2)
+            writer.writerow(dot_data)
     else:
-        with open(out_file, 'a', encoding='utf-8', newline='') as out:
-            writer = csv.writer(out)
-            writer.writerows(coffs)
-        with open(out_file2, 'a', encoding='utf-8', newline='') as out:
-            writer = csv.writer(out)
-            writer.writerow(header2)
-            writer.writerow(xy)
-    return out_file
+        with open(efd_file, 'a', encoding='utf-8', newline='') as out1:
+            writer = csv.writer(out1)
+            writer.writerow(efd_header)
+            writer.writerow(efd_data)
+        with open(dot_file, 'a', encoding='utf-8', newline='') as out2:
+            writer = csv.writer(out2)
+            writer.writerow(dot_header)
+            writer.writerow(dot_data)
+    return efd_file
 
 
-def plot_result(efd_result, max_contour, arg) -> Path:
-    out_img_file = arg.out.with_suffix('.out.png')
+def plot_result(efd_result, max_contour, dots_t, arg) -> Path:
+    out_img_file = arg.out.with_suffix('.out.pdf')
     n_harmonic = arg.n_harmonic
-    # n_dots = arg.n_dots + 1000
-    n_dots = arg.n_dots
     a, b, c, d, A0, C0 = efd_result
     # efd = np.concatenate([a,b,c,d], axis=1)
     canvas = cv2.imread(str(arg.input), cv2.IMREAD_COLOR)
@@ -817,7 +808,7 @@ def plot_result(efd_result, max_contour, arg) -> Path:
     # ax2.set_xlim(-2, 2)
     # ax2.set_ylim(-2, 2)
     dots_0 = get_curve_from_efd(a, b, c, d, 1, n_dots=arg.n_dots)
-    dots_t = get_curve_from_efd(a, b, c, d, n_harmonic, n_dots=arg.n_dots)
+    # dots_t = get_curve_from_efd(a, b, c, d, n_harmonic, n_dots=arg.n_dots)
     ax2.plot(dots_0[:, 0], dots_0[:, 1], 'b--', linewidth=1)
     ax2.plot(dots_t[:, 0], dots_t[:, 1], 'r', linewidth=2)
     ax2.plot(dots_t[0, 0], dots_t[0, 1], 'bo', linewidth=1, alpha=0.5)
@@ -893,24 +884,22 @@ def cli_main():
         log.error('Cannot find boundary in the image file')
         return -1
     else:
-        log.info('Found boundary of the shape')
+        log.info('Biggest contour found')
     if arg.method == 'chain_code':
-        log.info('Getting chain code')
-        chain_code_result, max_contour = get_chain_code(gray, max_contour)
+        chain_code_result = get_chain_code(gray, max_contour)
         log.info('Got valid chain code')
         if chain_code_result is None:
             log.error('Quit')
             return -1
         # get efd
-        log.info('Getting efd')
         efd_result = get_efd_from_chain_code(chain_code_result, arg.n_harmonic)
     else:
-        log.info('Getting efd')
         efd_result = get_efd_from_contour(max_contour, arg.n_harmonic)
+    log.info('Got efd')
     a, b, c, d, A0, C0, Tk, T = efd_result
     if not arg.skip_normalize:
-        log.info('Normalizing efd')
         normalized_efd = normalize([a, b, c, d, A0, C0])
+        log.info('Efd normalized')
     else:
         normalized_efd = [a, b, c, d, A0, C0]
     # draw
@@ -920,13 +909,14 @@ def cli_main():
                              arg.n_harmonic, arg.n_dots)
     else:
         dots = get_curve_from_efd(a_new, b_new, c_new, d_new, arg.n_harmonic, arg.n_dots)
+    log.info('Reconstructed curve')
     # plt.plot(dots[:, 0], dots[:, 1], 'r')
     # plt.show()
     output_csv(dots, a_new, b_new, c_new, d_new, arg)
     log.info(f'Output data: {arg.out.resolve()}')
     log.info(f'Output data: {arg.out.with_suffix(".dot.csv").resolve()}')
     if arg.out_image:
-        out_img_file = plot_result(normalized_efd, max_contour, arg)
+        out_img_file = plot_result(normalized_efd, max_contour, dots, arg)
         log.info(f'Output image: {out_img_file.resolve()}')
     log.info('Done')
     return
