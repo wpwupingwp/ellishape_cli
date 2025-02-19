@@ -2,6 +2,7 @@
 import argparse
 import csv
 from concurrent.futures import ProcessPoolExecutor
+from timeit import default_timer as timer
 from pathlib import Path
 
 import cv2
@@ -678,9 +679,10 @@ def get_efd_from_chain_code(chain_code, n_order):
     d = np.zeros(n_order)
 
     # parallel
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor() as pool:
         # todo: send_bytes too expensive
-        results = list(executor.map(compute_harmonic_coefficients, [chain_code] * n_order, range(n_order)))
+        results = list(pool.map(compute_harmonic_coefficients,
+                                [chain_code] * n_order, range(n_order)))
 
     for i, harmonic_coeff in enumerate(results):
         a[i] = harmonic_coeff[0].item()
@@ -842,7 +844,7 @@ def get_args():
     arg.add_argument('-I', '-input_list', dest='input_list',
                      help='input list with each line for filename')
     arg.add_argument('-n', '-n_order', dest='n_order',
-                      default=35, type=int, help='number of EFD orders')
+                      default=64, type=int, help='number of EFD orders')
     arg.add_argument('-N', '-n_dots', dest='n_dots',type=int, default=512,
                      help='number of output dots')
     arg.add_argument('-method', choices=('chain_code', 'dots'), default='dots')
@@ -874,7 +876,7 @@ def init_args(arg_):
     if arg.input_list:
         arg.input_list = check_exist(arg.input_list)
         input_list = arg.input_list.read_text().splitlines()
-        input_list = [check_exist(i) for i in input_list]
+        arg.input_file_list = [check_exist(i) for i in input_list]
         if len(input_list) == 0:
             log.critical(f'Input list {arg.input_list} is empty')
             arg_.print_usage()
@@ -882,10 +884,14 @@ def init_args(arg_):
         log.info(f'Input list {arg.input_list} with {len(input_list)} files')
     if arg.input:
         arg.input = check_exist(arg.input)
+        arg.input_file_list = [arg.input, ]
         log.info(f'Input {arg.input}')
     # todo: special out for input_list?
     if arg.out is None:
-        arg.out = arg.input.with_suffix('.csv')
+        if arg.input is None:
+            arg.out = arg.input_list.with_suffix('.csv')
+        else:
+            arg.out = arg.input.with_suffix('.csv')
     else:
         arg.out = Path(arg.out).absolute()
     return arg
@@ -946,12 +952,19 @@ def run_main(input_file, out_file, method, n_order, n_dots, skip_normalize,
 
 
 def cli_main():
+    start = timer()
     arg_ = get_args()
     arg = init_args(arg_)
-    params = (arg.input, arg.out, arg.method, arg.n_order, arg.n_dots,
-             arg.skip_normalize, arg.out_image)
-    run_main(*params)
-    log.info('Done')
+    common_params = (arg.out, arg.method, arg.n_order, arg.n_dots,
+                     arg.skip_normalize, arg.out_image)
+    if arg.input_list is None:
+        run_main(arg.input_file_list[0], *common_params)
+    else:
+        with ProcessPoolExecutor() as pool:
+            for i in arg.input_file_list:
+                pool.submit(run_main, i, *common_params)
+    end = timer()
+    log.info(f'Done with {end-start:.3f} seconds')
 
 
 if __name__ == '__main__':
