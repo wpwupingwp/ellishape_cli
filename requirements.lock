@@ -26,23 +26,18 @@ loguru==0.7.2
     # via ellishape-cli
 matplotlib==3.10.0
     # via ellishape-cli
-memoization==0.4.0
-    # via ellishape-cli
 numpy==2.2.1
     # via biopython
     # via contourpy
     # via ellishape-cli
     # via matplotlib
     # via opencv-contrib-python
-    # via pyefd
 opencv-contrib-python==4.10.0.84
     # via ellishape-cli
 packaging==24.2
     # via matplotlib
 pillow==11.1.0
     # via matplotlib
-pyefd==1.6.0
-    # via ellishape-cli
 pyparsing==3.2.1
     # via matplotlib
 python-dateutil==2.9.0.post0

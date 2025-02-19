@@ -662,11 +662,11 @@ def get_chain_code(gray, max_contour) -> (np.ndarray|None):
     is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
 
     if not is_closed:
-        log.error(f'Chain code is not closed')
+        log.error('Chain code is not closed')
         log.error(f'Chain code length: {chaincode.shape[0]}')
         return None
     else:
-        log.debug(f'Chain code is closed')
+        log.debug('Chain code is closed')
         log.debug(f'{chaincode=}')
         log.debug(f'{chaincode.shape=}')
     return chaincode

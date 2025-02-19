@@ -10,10 +10,8 @@ dependencies = [
     "opencv-contrib-python>=4.10.0.84",
     "loguru>=0.7.2",
     "numpy>1.26",
-    "memoization>=0.4.0",
     "biopython>=1.84",
     "matplotlib>=3.10.0",
-    "pyefd>=1.6.0",
 ]
 readme = "README.md"
 requires-python = ">=3.10"
