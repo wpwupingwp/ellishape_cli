@@ -54,7 +54,7 @@ def code2axis(chain_code, start_point):
     return axis
 
 
-def check_input(input_file: Path, encode='utf-8'):
+def check_input_csv(input_file: Path, encode='utf-8'):
     n = 0
     if not input_file.exists():
         log.error('Input file does not exist: {}'.format(input_file))
@@ -855,7 +855,7 @@ def get_args():
     return arg
 
 
-def check_exist(filename: str|Path) ->Path:
+def check_input(filename: str|Path) ->Path:
     i = Path(filename).resolve().absolute()
     if not i.exists() or not i.is_file():
         log.error(f'Cannot find input {i} or it is not a valid file')
@@ -874,26 +874,28 @@ def init_args(arg_):
         log.warning('Ignore "-input" due to "-input_list')
         arg.input = None
     if arg.input_list:
-        arg.input_list = check_exist(arg.input_list)
+        arg.input_list = check_input(arg.input_list)
         input_list = arg.input_list.read_text().splitlines()
-        arg.input_file_list = [check_exist(i) for i in input_list]
+        arg.input_file_list = [check_input(i) for i in input_list]
         if len(input_list) == 0:
             log.critical(f'Input list {arg.input_list} is empty')
             arg_.print_usage()
             raise SystemExit(-1)
         log.info(f'Input list {arg.input_list} with {len(input_list)} files')
     if arg.input:
-        arg.input = check_exist(arg.input)
+        arg.input = check_input(arg.input)
         arg.input_file_list = [arg.input, ]
         log.info(f'Input {arg.input}')
     # todo: special out for input_list?
     if arg.out is None:
         if arg.input is None:
-            arg.out = arg.input_list.with_suffix('.csv')
+            arg.out = arg.input_list.parent / 'out.csv'
         else:
             arg.out = arg.input.with_suffix('.csv')
     else:
         arg.out = Path(arg.out).absolute()
+    if arg.out.exists():
+        log.warning(f'Output {arg.out} exists.')
     return arg
 
 

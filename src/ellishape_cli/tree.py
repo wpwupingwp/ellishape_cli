@@ -12,7 +12,7 @@ from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from matplotlib import pyplot as plt
 
-from ellishape_cli.cli import check_input
+from ellishape_cli.cli import check_input_csv
 from ellishape_cli.global_vars import log
 
 # contour coordinates
@@ -317,12 +317,12 @@ def get_tree():
     start = timer()
     arg = parse_args()
     arg.input = Path(arg.input).absolute().resolve()
-    check_input(arg.input)
+    check_input_csv(arg.input)
 
     names, data = read_csv(arg.input)
     if arg.kind is not None:
         arg.kind = Path(arg.kind).absolute().resolve()
-        check_input(arg.kind)
+        check_input_csv(arg.kind)
         name_kind, kinds, kind_list = read_kind_csv(arg.kind, names)
     else:
         name_kind, kinds, kind_list = dict(), [], []
