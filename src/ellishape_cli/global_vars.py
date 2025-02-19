@@ -1,5 +1,5 @@
 from pathlib import Path
-from sys import stderr
+from sys import stdout
 
 from loguru import logger as log
 
@@ -11,10 +11,17 @@ if not ROOT_DIR.exists():
 log_file = ROOT_DIR / 'Log.txt'
 # detailed file log
 log.remove()
-log.add(log_file, level='DEBUG', backtrace=True, diagnose=True, filter=NAME,
+fmt = ('<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | '
+       '<level>{level: <8}</level> | '
+       # '<cyan>{name}</cyan>:'
+       '<cyan>{function}</cyan>:'
+       '<cyan>{line}</cyan> - '
+       '<level>{message}</level>')
+log.add(log_file, format=fmt, level='DEBUG', backtrace=True, diagnose=True,
+        filter=NAME,
         mode='a', encoding='utf-8', enqueue=True)
 # simple stdout log
-log.add(stderr, colorize=True, level='INFO', enqueue=True)
+log.add(stdout, format=fmt, colorize=True, level='INFO', enqueue=True)
 # log.info(f'Start {NAME}')
 # log.info(f'Log file {log_file}')
 

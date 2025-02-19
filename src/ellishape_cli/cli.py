@@ -838,7 +838,7 @@ def plot_result(efd_result, max_contour, dots_t, arg) -> Path:
     return out_img_file
 
 
-def parse_args():
+def get_args():
     arg = argparse.ArgumentParser(description='ElliShape cli')
     arg.add_argument('-i', '-input', dest='input',
                       help='input grayscale image with white as foreground')
@@ -854,7 +854,8 @@ def parse_args():
     arg.add_argument('-out', help='output csv file')
     arg.add_argument('-out_image', action='store_true',
                      help='output result image')
-    return arg.parse_args()
+    return arg
+
 
 def check_exist(filename: str|Path) ->Path:
     i = Path(filename).resolve().absolute()
@@ -864,11 +865,12 @@ def check_exist(filename: str|Path) ->Path:
     return i
 
 
-def init_args():
-    arg = parse_args()
+def init_args(arg_):
+    arg = arg_.parse_args()
     log.info(vars(arg))
     if arg.input is None and arg.input_list is None:
         log.critical('Empty input')
+        arg_.print_usage()
         raise SystemExit(-1)
     if arg.input and arg.input_list:
         log.warning('Ignore "-input" due to "-input_list')
@@ -879,6 +881,7 @@ def init_args():
         input_list = [check_exist(i) for i in input_list]
         if len(input_list) == 0:
             log.critical(f'Input list {arg.input_list} is empty')
+            arg_.print_usage()
             raise SystemExit(-1)
         log.info(f'Input list {arg.input_list} with {len(input_list)} files')
     if arg.input:
@@ -893,7 +896,8 @@ def init_args():
 
 
 def cli_main():
-    arg = init_args()
+    arg_ = get_args()
+    arg = init_args(arg_)
 
     # read and convert input
     # todo: resize?
