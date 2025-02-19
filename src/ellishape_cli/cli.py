@@ -6,6 +6,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 
 from ellishape_cli.global_vars import log
 
@@ -748,11 +749,8 @@ def get_curve_from_efd(a, b, c, d, n_order: int, n_dots: int, A0=0, C0=0):
     return dots
 
 
-def output_csv(dots, a, b, c, d, arg):
-    n_harmonic = arg.n_harmonic
-    n_dots = arg.n_dots
-    input_file = Path(arg.input)
-    efd_file = Path(arg.out)
+def output_csv(input_file, out_file, dots, a, b, c, d, n_order, n_dots):
+    efd_file = out_file
     dot_file = efd_file.with_suffix('.dot.csv')
 
     # t = np.transpose([a, b, c, d])
@@ -760,7 +758,7 @@ def output_csv(dots, a, b, c, d, arg):
     Hs = np.column_stack((a, b, c, d)).ravel()
     efd_header = ["filepath"] + [
         f"{chr(ord('a') + (col - 1) % 4)}{(col - 1) // 4 + 1}"
-        for col in range(1, n_harmonic * 4 + 1)
+        for col in range(1, n_order * 4 + 1)
     ]
     dot_header = ['filepath'] + [
         f"{axis}{i}" for i in range(1, n_dots + 1) for axis in ('x', 'y')
@@ -788,15 +786,13 @@ def output_csv(dots, a, b, c, d, arg):
     return efd_file
 
 
-def plot_result(efd_result, max_contour, dots_t, arg) -> Path:
-    from matplotlib import pyplot as plt
-
-    out_img_file = arg.out.with_suffix('.out.pdf')
-    n_harmonic = arg.n_harmonic
+def plot_result(out_file, efd_result, max_contour, dots_t, n_dots) -> Path:
+    out_img_file = out_file.with_suffix('.out.pdf')
+    # n_order = arg.n_order
     a, b, c, d, A0, C0 = efd_result
     # efd = np.concatenate([a,b,c,d], axis=1)
-    canvas = cv2.imread(str(arg.input), cv2.IMREAD_COLOR)
-    canvas = cv2.resize(canvas, (canvas.shape[1]//4, canvas.shape[0]//4))
+    # canvas = cv2.imread(str(arg.input), cv2.IMREAD_COLOR)
+    # canvas = cv2.resize(canvas, (canvas.shape[1]//4, canvas.shape[0]//4))
     # ax = plt.subplot2grid((2, canvas.shape[0]//2), (canvas.shape[0], 2%canvas.shape[0]//2))
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
     ax1.set_title('contour')
@@ -806,23 +802,23 @@ def plot_result(efd_result, max_contour, dots_t, arg) -> Path:
     ax2.set_aspect('equal')
     # ax2.set_xlim(-2, 2)
     # ax2.set_ylim(-2, 2)
-    dots_0 = get_curve_from_efd(a, b, c, d, 1, n_dots=arg.n_dots)
-    # dots_t = get_curve_from_efd(a, b, c, d, n_harmonic, n_dots=arg.n_dots)
+    dots_0 = get_curve_from_efd(a, b, c, d, 1, n_dots=n_dots)
+    # dots_t = get_curve_from_efd(a, b, c, d, n_order, n_dots=arg.n_dots)
     ax2.plot(dots_0[:, 0], dots_0[:, 1], 'b--', linewidth=1)
     ax2.plot(dots_t[:, 0], dots_t[:, 1], 'r', linewidth=2)
     ax2.plot(dots_t[0, 0], dots_t[0, 1], 'bo', linewidth=1, alpha=0.5)
     plt.savefig(out_img_file)
-    # # # todo: for verify
-    from pyefd import elliptic_fourier_descriptors, plot_efd
+    # todo: for verify
+    # from pyefd import elliptic_fourier_descriptors, plot_efd
     # coeff_other = elliptic_fourier_descriptors(max_contour, normalize=True,
-    #                                               order=n_harmonic)
-    # a = np.reshape(a, (n_harmonic, 1))
-    # b = np.reshape(b, (n_harmonic, 1))
-    # c = np.reshape(c, (n_harmonic, 1))
-    # d = np.reshape(d, (n_harmonic, 1))
+    #                                               order=n_order)
+    # a = np.reshape(a, (n_order, 1))
+    # b = np.reshape(b, (n_order, 1))
+    # c = np.reshape(c, (n_order, 1))
+    # d = np.reshape(d, (n_order, 1))
     # coeff_us = np.concatenate([a,b,c,d], axis=1)
     # a2, b2, c2, d2 = coeff_other.T
-    # dots_2 = eft_to_curve(a2, b2, c2, d2, n_harmonic, n_dots=512)
+    # dots_2 = eft_to_curve(a2, b2, c2, d2, n_order, n_dots=512)
     # dots_3 = eft_to_curve(a2, b2, c2, d2, 1, n_dots=512)
     # ax2.plot(dots_2[:, 0], dots_2[:, 1], 'y')
     # ax2.plot(dots_3[:, 0], dots_3[:, 1], 'y--')
@@ -845,9 +841,9 @@ def get_args():
     # no headers for easily use in Linux
     arg.add_argument('-I', '-input_list', dest='input_list',
                      help='input list with each line for filename')
-    arg.add_argument('-n', '-n_harmonic', dest='n_harmonic',
-                      default=35, type=int, help='number of harmonic rank')
-    arg.add_argument('-n_dots', type=int, default=512,
+    arg.add_argument('-n', '-n_order', dest='n_order',
+                      default=35, type=int, help='number of EFD orders')
+    arg.add_argument('-N', '-n_dots', dest='n_dots',type=int, default=512,
                      help='number of output dots')
     arg.add_argument('-method', choices=('chain_code', 'dots'), default='dots')
     arg.add_argument('-skip_normalize', action='store_true')
@@ -895,14 +891,12 @@ def init_args(arg_):
     return arg
 
 
-def cli_main():
-    arg_ = get_args()
-    arg = init_args(arg_)
-
+def run_main(input_file, out_file, method, n_order, n_dots, skip_normalize,
+             out_image):
     # read and convert input
     # todo: resize?
     # img = cv2.resize(img, None, fx=0.125, fy=0.125)
-    gray = cv2.imread(str(arg.input), cv2.IMREAD_GRAYSCALE)
+    gray = cv2.imread(str(input_file), cv2.IMREAD_GRAYSCALE)
     log.info(f'Image size: {gray.shape}')
     # get chain_code from contour
     log.info('Finding contours')
@@ -912,19 +906,19 @@ def cli_main():
         return -1
     else:
         log.info('Biggest contour found')
-    if arg.method == 'chain_code':
+    if method == 'chain_code':
         chain_code_result = get_chain_code(gray, max_contour)
         log.info('Got valid chain code')
         if chain_code_result is None:
             log.error('Quit')
             return -1
         # get efd
-        efd_result = get_efd_from_chain_code(chain_code_result, arg.n_harmonic)
+        efd_result = get_efd_from_chain_code(chain_code_result, n_order)
     else:
-        efd_result = get_efd_from_contour(max_contour, arg.n_harmonic)
+        efd_result = get_efd_from_contour(max_contour, n_order)
     log.info('Got efd')
     a, b, c, d, A0, C0, Tk, T = efd_result
-    if not arg.skip_normalize:
+    if not skip_normalize:
         normalized_efd = normalize([a, b, c, d, A0, C0])
         log.info('Efd normalized')
     else:
@@ -932,22 +926,32 @@ def cli_main():
         normalized_efd = [a, b, c, d, A0, C0]
     # draw
     a_new, b_new, c_new, d_new, A0_new, C0_new = normalized_efd
-    if arg.method == 'chain_code':
+    if method == 'chain_code':
         dots = get_curve_old(a_new, b_new, c_new, d_new, A0_new, C0_new, Tk, T,
-                             arg.n_harmonic, arg.n_dots)
+                             n_order, n_dots)
     else:
-        dots = get_curve_from_efd(a_new, b_new, c_new, d_new, arg.n_harmonic, arg.n_dots)
+        dots = get_curve_from_efd(a_new, b_new, c_new, d_new, n_order, n_dots)
     log.info('Reconstructed curve')
     # plt.plot(dots[:, 0], dots[:, 1], 'r')
     # plt.show()
-    output_csv(dots, a_new, b_new, c_new, d_new, arg)
-    log.info(f'Output data: {arg.out.resolve()}')
-    log.info(f'Output data: {arg.out.with_suffix(".dot.csv").resolve()}')
-    if arg.out_image:
-        out_img_file = plot_result(normalized_efd, max_contour, dots, arg)
+    output_csv(input_file, out_file, dots, a_new, b_new, c_new, d_new, n_order,
+               n_dots)
+    log.info(f'Output data: {out_file.resolve()}')
+    log.info(f'Output data: {out_file.with_suffix(".dot.csv").resolve()}')
+    if out_image:
+        out_img_file = plot_result(out_file, normalized_efd, max_contour, dots,
+                                   n_dots)
         log.info(f'Output image: {out_img_file.resolve()}')
-    log.info('Done')
     return
+
+
+def cli_main():
+    arg_ = get_args()
+    arg = init_args(arg_)
+    params = (arg.input, arg.out, arg.method, arg.n_order, arg.n_dots,
+             arg.skip_normalize, arg.out_image)
+    run_main(*params)
+    log.info('Done')
 
 
 if __name__ == '__main__':
