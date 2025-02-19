@@ -6,7 +6,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
 
 from ellishape_cli.global_vars import log
 
@@ -68,12 +67,13 @@ def check_input(input_file: Path, encode='utf-8'):
         log.error(line)
         raise SystemExit(-2)
 
+
 def get_max_contour(gray):
     _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # find contours
     contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL,
-                                   # cv2.CHAIN_APPROX_SIMPLE)
-                                   cv2.CHAIN_APPROX_NONE)
+                                   cv2.CHAIN_APPROX_SIMPLE)
+                                   # cv2.CHAIN_APPROX_NONE)
     if not contours:
         return None
     max_contour = max(contours, key=cv2.contourArea)
@@ -729,14 +729,11 @@ def get_curve_from_efd(a, b, c, d, n_order: int, n_dots: int, A0=0, C0=0):
     """
     assert a.shape[0] == b.shape[0] == c.shape[0] == d.shape[0]
     total_order = a.shape[0]
+    # similar to ShyBoy233's
     a = np.reshape(a, (total_order, 1))
     b = np.reshape(b, (total_order, 1))
     c = np.reshape(c, (total_order, 1))
     d = np.reshape(d, (total_order, 1))
-    # a = efd[:, 0]
-    # b = efd[:, 1]
-    # c = efd[:, 2]
-    # d = efd[:, 3]
     t = np.linspace(0, 1.0, num=n_dots, endpoint=False)
     n = np.arange(1, n_order + 1).reshape( (-1, 1))
     x_t = A0 + np.sum(
@@ -792,6 +789,8 @@ def output_csv(dots, a, b, c, d, arg):
 
 
 def plot_result(efd_result, max_contour, dots_t, arg) -> Path:
+    from matplotlib import pyplot as plt
+
     out_img_file = arg.out.with_suffix('.out.pdf')
     n_harmonic = arg.n_harmonic
     a, b, c, d, A0, C0 = efd_result
@@ -842,8 +841,10 @@ def plot_result(efd_result, max_contour, dots_t, arg) -> Path:
 def parse_args():
     arg = argparse.ArgumentParser(description='ElliShape cli')
     arg.add_argument('-i', '-input', dest='input',
-                      help='input grayscale image with white as foreground',
-                      required=True)
+                      help='input grayscale image with white as foreground')
+    # no headers for easily use in Linux
+    arg.add_argument('-I', '-input_list', dest='input_list',
+                     help='input list with each line for filename')
     arg.add_argument('-n', '-n_harmonic', dest='n_harmonic',
                       default=35, type=int, help='number of harmonic rank')
     arg.add_argument('-n_dots', type=int, default=512,
@@ -855,22 +856,44 @@ def parse_args():
                      help='output result image')
     return arg.parse_args()
 
+def check_exist(filename: str|Path) ->Path:
+    i = Path(filename).resolve().absolute()
+    if not i.exists() or not i.is_file():
+        log.error(f'Cannot find input {i} or it is not a valid file')
+        raise SystemExit(-1)
+    return i
 
-def cli_main():
-    # one leaf per image
+
+def init_args():
     arg = parse_args()
-    log.info(str(arg))
-    arg.input = Path(arg.input).resolve().absolute()
-    if not arg.input.exists() or not arg.input.is_file():
-        log.error(f'Input {arg.input} does not exist or is not a valid file')
-        return -1
-    else:
-        log.info(arg.input)
-    log.info(f'Input {arg.input}')
+    log.info(vars(arg))
+    if arg.input is None and arg.input_list is None:
+        log.critical('Empty input')
+        raise SystemExit(-1)
+    if arg.input and arg.input_list:
+        log.warning('Ignore "-input" due to "-input_list')
+        arg.input = None
+    if arg.input_list:
+        arg.input_list = check_exist(arg.input_list)
+        input_list = arg.input_list.read_text().splitlines()
+        input_list = [check_exist(i) for i in input_list]
+        if len(input_list) == 0:
+            log.critical(f'Input list {arg.input_list} is empty')
+            raise SystemExit(-1)
+        log.info(f'Input list {arg.input_list} with {len(input_list)} files')
+    if arg.input:
+        arg.input = check_exist(arg.input)
+        log.info(f'Input {arg.input}')
+    # todo: special out for input_list?
     if arg.out is None:
         arg.out = arg.input.with_suffix('.csv')
     else:
         arg.out = Path(arg.out).absolute()
+    return arg
+
+
+def cli_main():
+    arg = init_args()
 
     # read and convert input
     # todo: resize?
@@ -901,6 +924,7 @@ def cli_main():
         normalized_efd = normalize([a, b, c, d, A0, C0])
         log.info('Efd normalized')
     else:
+        log.warning('Skip normalization')
         normalized_efd = [a, b, c, d, A0, C0]
     # draw
     a_new, b_new, c_new, d_new, A0_new, C0_new = normalized_efd

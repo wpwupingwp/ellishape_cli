@@ -4,8 +4,8 @@ from pathlib import Path
 files=("circle.png","square.png","square_rotate.png","star.png", "leaf2.png","leaf.png")
 # files=("leaf.png", )
 args = [
-    '-n_dots 512 -n 35 -method dots -out_image -out ../data/leaf-dots.csv',
-    '-n_dots 512 -n 35 -method chain_code -out_image -out ../data/leaf-chaincode.csv',
+    '-n_dots 512 -n 35 -method dots -out_image -out ../data/out-dots.csv',
+    '-n_dots 512 -n 35 -method chain_code -out_image -out ../data/out-chaincode.csv',
     '-n_dots 512 -n 35 -method dots',
     '-n_dots 512 -n 35 -method chain_code',
     '-n_dots 512 -n 35 -method dots -out_image',
