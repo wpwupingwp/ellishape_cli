@@ -8,9 +8,10 @@ from timeit import default_timer as timer
 
 import cv2
 import numpy as np
-from Bio import Phylo
-from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from matplotlib import pyplot as plt
+
+from skbio import DistanceMatrix as DistanceMatrix2
+from skbio.tree import nj
 
 from ellishape_cli.cli import check_input_csv
 from ellishape_cli.global_vars import log
@@ -217,7 +218,50 @@ def get_distance_matrix(names, data, arg):
     return e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix
 
 
-def build_nj_tree(m_name, names: list, matrix: list, arg):
+def tril_to_matrix(old_matrix: list[list[float]]) -> np.ndarray:
+    # dtype=float
+    width = len(old_matrix)
+    new = np.zeros((width, width), dtype=float)
+    for idx, row in enumerate(old_matrix):
+        new[idx, :] = np.pad(row, (0, width-len(row)))
+    new += new.T
+    np.fill_diagonal(new, 0.0)
+    return new
+
+
+# def build_nj_tree(m_name, names: list, matrix: list, arg):
+#     from Bio import Phylo
+#     from Bio.Phylo.TreeConstruction import DistanceMatrix, \
+#         DistanceTreeConstructor
+#     out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
+#     if m_name == 'h_dist' and not arg.h_dist:
+#         log.warning('Skip h_dist tree')
+#         return
+#     if m_name == 's_dist' and not arg.s_dist:
+#         log.warning('Skip s_dist tree')
+#         return
+#     if m_name == 'f_dist' and not arg.f_dist:
+#         log.warning('Skip f_dist tree')
+#         return
+#     log.info('Start building NJ tree')
+#     distance_matrix_obj = DistanceMatrix(names, matrix)
+#     constructor = DistanceTreeConstructor()
+#     # build NJ tree
+#     tree = constructor.nj(distance_matrix_obj)
+#     # s_dist may be negative
+#     for t in tree.get_terminals():
+#         if t.branch_length < 0:
+#             log.debug(f'{t.branch_length:.2f}')
+#         t.branch_length = abs(t.branch_length)
+#     log.debug(tree)
+#     # Phylo.draw(tree, branch_labels=lambda x: f'{x.branch_length:.2f}', do_show=True)
+#     # plt.savefig(name + '.pdf')
+#     Phylo.write(tree, out_tree, 'newick')
+#     log.info(f'Output tree {out_tree}')
+#     return tree
+
+
+def build_nj_tree2(m_name:str, names: np.array, data: list[list[float]], arg):
     out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
     if m_name == 'h_dist' and not arg.h_dist:
         log.warning('Skip h_dist tree')
@@ -228,21 +272,13 @@ def build_nj_tree(m_name, names: list, matrix: list, arg):
     if m_name == 'f_dist' and not arg.f_dist:
         log.warning('Skip f_dist tree')
         return
-    distance_matrix_obj = DistanceMatrix(names, matrix)
-    constructor = DistanceTreeConstructor()
-    # build NJ tree
-    tree = constructor.nj(distance_matrix_obj)
-    # s_dist may be negative
-    for t in tree.get_terminals():
-        if t.branch_length < 0:
-            log.debug(f'{t.branch_length:.2f}')
-        t.branch_length = abs(t.branch_length)
-    log.debug(tree)
-    # Phylo.draw(tree, branch_labels=lambda x: f'{x.branch_length:.2f}', do_show=True)
-    # plt.savefig(name + '.pdf')
-    Phylo.write(tree, out_tree, 'newick')
+    log.info('Start building NJ tree')
+    matrix = tril_to_matrix(data)
+    dis_matrix = DistanceMatrix2(matrix, names)
+    tree = nj(dis_matrix)
+    tree.write(out_tree, 'newick')
     log.info(f'Output tree {out_tree}')
-    return tree
+    return
 
 
 def matrix_to_kinds(sample_names: list, matrix: list,
@@ -354,21 +390,25 @@ def get_tree():
             m3_name = f'{m_name}-kind_std'
             matrix2csv(m2_name, kinds, kind_mean_matrix, arg)
             matrix2csv(m3_name, kinds, kind_std_matrix, arg)
-            build_nj_tree(m2_name, kinds, kind_mean_matrix, arg)
+            write_time = timer()
+            build_nj_tree2(m2_name, kinds, kind_mean_matrix, arg)
+        else:
+            write_time = timer()
     with ProcessPoolExecutor() as executor:
         for m_name, matrix in zip(
                 ['e_dist', 'h_dist', 's_dist', 'f_dist'],
                 [e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix]):
-            executor.submit(build_nj_tree,m_name, names, matrix, arg)
-            # build_nj_tree(m_name, names, matrix, arg)
+            executor.submit(build_nj_tree2,m_name, names, matrix, arg)
+            # print(len(r.result()))
     end = timer()
     log.info(f'{len(names)} samples')
     log.info(f'{len(data)*(len(data)-1)/2} pairs')
-    log.info(f'Total time elapsed: {end - start:.2f}')
-    log.info(f'Read: {read_time - start:.2f}')
-    log.info(f'PCA: {pca_time - read_time:.2f}')
-    log.info(f'Matrix: {matrix_time - pca_time:.2f}')
-    log.info(f'Tree: {end - matrix_time:.2f}')
+    log.info(f'Total time elapsed: {end - start:.3f}')
+    log.info(f'Read: {read_time - start:.3f}')
+    log.info(f'PCA: {pca_time - read_time:.3f}')
+    log.info(f'Matrix: {matrix_time - pca_time:.3f}')
+    log.info(f'Write: {write_time - matrix_time:.3f}')
+    log.info(f'Tree: {end - write_time:.3f}')
     sys.setrecursionlimit(r_limit)
     log.info('Done')
 
