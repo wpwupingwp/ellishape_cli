@@ -886,7 +886,13 @@ def init_args(arg_):
         arg.input = check_input(arg.input)
         arg.input_file_list = [arg.input, ]
         log.info(f'Input {arg.input}')
-    # todo: special out for input_list?
+    if arg.method == 'chain_code' and arg.input_list is not None:
+        log.error('Batch mode on chain code method may cause program dead!')
+        log.error('Continue?')
+        if input().lower().strip().startswith('y'):
+            pass
+        else:
+            raise SystemExit(-1)
     if arg.out is None:
         if arg.input is None:
             arg.out = arg.input_list.parent / 'out.csv'
