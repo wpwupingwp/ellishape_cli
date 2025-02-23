@@ -1,5 +1,3 @@
-import sys
-import csv
 from pathlib import Path
 import argparse
 from collections import defaultdict
@@ -191,10 +189,15 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
 #
 #
 def get_distance_matrix2(data):
-    n = data.shape[0]
-    data = data.reshape((n, -1)).astype(np.float16)
+    # samples, dots*2
+    m, n = data.shape
+    data = data.reshape((m, -1)).astype(np.float64)
     s_pdist = pdist(data)
-    result = np.sqrt(squareform(s_pdist))
+    # todo: no factor? 1/T
+    # todo: reshape affects result?
+    factor = np.sqrt(1/(n/2))
+    s_pdist2 = s_pdist * factor
+    result = squareform(s_pdist2)
     return result
 
 
@@ -206,7 +209,7 @@ def get_distance_matrix(names, data, arg):
     name_result = dict()
     # parallel
     futures = []
-    data = data.astype(np.float16)
+    data = data.astype(np.float64)
     # garbage collect to avoid out of memory
     # n_batch = 1000
     with ProcessPoolExecutor() as executor:
@@ -397,14 +400,6 @@ def get_tree():
         PCA(data, kind_list, arg)
     pca_time = timer()
 
-    # aa = timer()
-    # p_result = get_distance_matrix2(data)
-    # matrix2csv('pdist', names, p_result, arg)
-    # bb = timer()
-    # build_nj_tree2('pdist', names, p_result, arg)
-    # cc = timer()
-    # log.info(bb-aa)
-    # log.info(cc-bb)
     (e_dist_matrix, h_dist_matrix, s_dist_matrix,
      f_dist_matrix) = get_distance_matrix(names, data, arg)
     matrix_time = timer()
@@ -430,6 +425,13 @@ def get_tree():
                 [e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix]):
             executor.submit(build_nj_tree2,m_name, names, matrix, arg)
             # print(len(r.result()))
+    aa = timer()
+    p_result = get_distance_matrix2(data)
+    matrix2csv('pdist', names, p_result, arg)
+    bb = timer()
+    build_nj_tree2('pdist', names, p_result, arg)
+    cc = timer()
+
     end = timer()
     log.info(f'{len(names)} samples')
     log.info(f'{len(data)*(len(data)-1)/2} pairs')
@@ -438,6 +440,12 @@ def get_tree():
     log.info(f'PCA: {pca_time - read_time:.3f}')
     log.info(f'Matrix: {matrix_time - pca_time:.3f}')
     log.info(f'Write: {write_time - matrix_time:.3f}')
+
+    log.info(f'pdist matrix {bb-aa:.3f}')
+    log.info(f'pdist tree {cc-bb:.3f}')
+    diff = np.sum(p_result - e_dist_matrix)
+    log.info(f'difference: {diff:.12f}')
+
     log.info(f'Tree: {end - write_time:.3f}')
     log.info('Done')
 
