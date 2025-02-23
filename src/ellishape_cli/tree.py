@@ -9,6 +9,7 @@ from timeit import default_timer as timer
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy.spatial.distance import pdist, squareform
 
 from skbio import DistanceMatrix as DistanceMatrix2
 from skbio.tree import nj
@@ -91,7 +92,32 @@ def read_kind_csv(category_csv: Path, sample_names: list) -> (dict, list):
     return name_kind, kinds, kind_list
 
 
-def matrix2csv(m_name: str, names:list, matrix: list, arg) -> Path|None:
+def tril_to_matrix(old_matrix: list[list[float]]) -> np.ndarray[float]:
+    # dtype=float
+    width = len(old_matrix)
+    new = np.zeros((width, width), dtype=float)
+    for idx, row in enumerate(old_matrix):
+        new[idx, :] = np.pad(row, (0, width-len(row)))
+    new += new.T
+    np.fill_diagonal(new, 0.0)
+    return new
+
+
+def matrix_to_tril(old_matrix: np.ndarray[float]) -> list[list[float]]:
+    # old_matrix: 2D matrix
+    result = []
+    m, n = old_matrix.shape
+    assert m==n
+    for i in range(m):
+        row = []
+        for j in range(n):
+            if j <= i:
+                row.append(old_matrix[i, j])
+        result.append(row)
+    return result
+
+
+def matrix2csv(m_name: str, names:list, matrix: np.ndarray, arg) -> Path|None:
     out_file = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
     if m_name == 'h_dist' and not arg.h_dist:
         log.warning('Skip h_dist matrix')
@@ -102,15 +128,20 @@ def matrix2csv(m_name: str, names:list, matrix: list, arg) -> Path|None:
     if m_name == 'f_dist' and not arg.f_dist:
         log.warning('Skip f_dist matrix')
         return None
-    with open(out_file, 'w', newline='') as csv_file:
-        writer = csv.writer(csv_file)
-        header = ['Name', ]
-        header.extend(names)
-        writer.writerow(header)
-        for name, row in zip(names, matrix):
-            line = [name,]
-            line.extend(row)
-            writer.writerow(line)
+    # with open(out_file, 'w', newline='') as csv_file:
+    #     writer = csv.writer(csv_file)
+    #     header = ['Name', ]
+    #     header.extend(names)
+    #     writer.writerow(header)
+    #     for name, row in zip(names, matrix):
+    #         line = [name,]
+    #         line.extend(row)
+    #         writer.writerow(line)
+    header = ['Name'] + names
+    col_name = np.array([names]).T
+    data = np.hstack([col_name, matrix])
+    all_data = np.vstack([header, data])
+    np.savetxt(out_file, all_data, fmt='%s', delimiter=',')
     log.info(f'Output matrix {out_file}')
     return out_file
 
@@ -147,14 +178,22 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
     return pair_name, e_dist, h_dist, s_dist, f_dist
 
 
-def get_task(names, data, h, s):
-    for i in range(len(data)):
-        for j in range(i + 1):
-            a_name = names[i]
-            b_name = names[j]
-            a = data[i].copy()
-            b = data[j].copy()
-            yield a_name, b_name, a, b, h, s
+# def get_task(names, data, h, s):
+#     for i in range(len(data)):
+#         for j in range(i + 1):
+#             a_name = names[i]
+#             b_name = names[j]
+#             a = data[i].copy()
+#             b = data[j].copy()
+#             yield a_name, b_name, a, b, h, s
+#
+#
+def get_distance_matrix2(data):
+    n = data.shape[0]
+    data = data.reshape((n, -1)).astype(np.float16)
+    s_pdist = pdist(data)
+    result = np.sqrt(squareform(s_pdist))
+    return result
 
 
 def get_distance_matrix(names, data, arg):
@@ -195,14 +234,7 @@ def get_distance_matrix(names, data, arg):
             a_name = names[i]
             b_name = names[j]
             pair_name = f'{a_name}-{b_name}'
-            # print(data[i][1:][:10])
-            # a = np.array(data[i]).reshape(-1,1, 2).astype(float)
-            # b = np.array(data[j]).reshape(-1,1, 2).astype(float)
-
-            # todo: parallel
             e_dist, h_dist, s_dist, f_dist = name_result[pair_name]
-            # e_dist, h_dist, s_dist = get_distance(a_name, b_name, a, b)
-            # log.info(f'{data[i][0]} {data[j][0]}')
             e_dist_list.append(e_dist)
             h_dist_list.append(h_dist)
             s_dist_list.append(s_dist)
@@ -211,18 +243,11 @@ def get_distance_matrix(names, data, arg):
         h_dist_matrix.append(h_dist_list)
         s_dist_matrix.append(s_dist_list)
         f_dist_matrix.append(f_dist_list)
-    return e_dist_matrix, h_dist_matrix, s_dist_matrix, f_dist_matrix
-
-
-def tril_to_matrix(old_matrix: list[list[float]]) -> np.ndarray:
-    # dtype=float
-    width = len(old_matrix)
-    new = np.zeros((width, width), dtype=float)
-    for idx, row in enumerate(old_matrix):
-        new[idx, :] = np.pad(row, (0, width-len(row)))
-    new += new.T
-    np.fill_diagonal(new, 0.0)
-    return new
+    e_dist_matrix_ = tril_to_matrix(e_dist_matrix)
+    h_dist_matrix_ = tril_to_matrix(h_dist_matrix)
+    s_dist_matrix_ = tril_to_matrix(s_dist_matrix)
+    f_dist_matrix_ = tril_to_matrix(f_dist_matrix)
+    return e_dist_matrix_, h_dist_matrix_, s_dist_matrix_, f_dist_matrix_
 
 
 # def build_nj_tree(m_name, names: list, matrix: list, arg):
@@ -257,7 +282,7 @@ def tril_to_matrix(old_matrix: list[list[float]]) -> np.ndarray:
 #     return tree
 
 
-def build_nj_tree2(m_name:str, names: np.array, data: list[list[float]], arg):
+def build_nj_tree2(m_name:str, names: np.array, matrix: np.ndarray[float], arg):
     out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
     if m_name == 'h_dist' and not arg.h_dist:
         log.warning('Skip h_dist tree')
@@ -269,7 +294,7 @@ def build_nj_tree2(m_name:str, names: np.array, data: list[list[float]], arg):
         log.warning('Skip f_dist tree')
         return
     log.info('Start building NJ tree')
-    matrix = tril_to_matrix(data)
+    # matrix = tril_to_matrix(data)
     dis_matrix = DistanceMatrix2(matrix, names)
     tree = nj(dis_matrix)
     tree.write(out_tree, 'newick')
@@ -277,7 +302,7 @@ def build_nj_tree2(m_name:str, names: np.array, data: list[list[float]], arg):
     return
 
 
-def matrix_to_kinds(sample_names: list, matrix: list,
+def matrix_to_kinds(sample_names: list, matrix: np.ndarray[float],
                     name_kind: dict, kinds: list):
     kind_values = defaultdict(list)
     for x in range(len(sample_names)):
@@ -305,7 +330,9 @@ def matrix_to_kinds(sample_names: list, matrix: list,
             std_list.append(np.std(values))
         kind_mean_matrix.append(mean_list)
         kind_std_matrix.append(std_list)
-    return kind_mean_matrix, kind_std_matrix
+    kind_mean_matrix_ = tril_to_matrix(kind_mean_matrix)
+    kind_std_matrix_ = tril_to_matrix(kind_std_matrix)
+    return kind_mean_matrix_, kind_std_matrix_
 
 
 def PCA(matrix, kind_list, arg):
@@ -352,6 +379,10 @@ def get_tree():
     check_input_csv(arg.input)
 
     names, data = read_csv(arg.input)
+    if len(names) == 0:
+        log.error('Empty input')
+        raise SystemExit(-1)
+
     if arg.kind is not None:
         arg.kind = Path(arg.kind).absolute().resolve()
         check_input_csv(arg.kind)
@@ -363,14 +394,15 @@ def get_tree():
     if arg.pca:
         PCA(data, kind_list, arg)
     pca_time = timer()
-    r_limit = sys.getrecursionlimit()
-    new_limit = len(names) * 10
-    sys.setrecursionlimit(max(r_limit, new_limit))
-    log.warning(f'Set recursion limit from {r_limit} to {new_limit}')
-    if len(names) == 0:
-        log.error('Empty input')
-        raise SystemExit(-1)
 
+    # aa = timer()
+    # p_result = get_distance_matrix2(data)
+    # matrix2csv('pdist', names, p_result, arg)
+    # bb = timer()
+    # build_nj_tree2('pdist', names, p_result, arg)
+    # cc = timer()
+    # log.info(bb-aa)
+    # log.info(cc-bb)
     (e_dist_matrix, h_dist_matrix, s_dist_matrix,
      f_dist_matrix) = get_distance_matrix(names, data, arg)
     matrix_time = timer()
@@ -405,7 +437,6 @@ def get_tree():
     log.info(f'Matrix: {matrix_time - pca_time:.3f}')
     log.info(f'Write: {write_time - matrix_time:.3f}')
     log.info(f'Tree: {end - write_time:.3f}')
-    sys.setrecursionlimit(r_limit)
     log.info('Done')
 
 if __name__ == '__main__':
