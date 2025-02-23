@@ -118,6 +118,7 @@ def matrix_to_tril(old_matrix: np.ndarray[float]) -> list[list[float]]:
 
 
 def matrix2csv(m_name: str, names:list, matrix: np.ndarray, arg) -> Path|None:
+    precision = 10
     out_file = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
     if m_name == 'h_dist' and not arg.h_dist:
         log.warning('Skip h_dist matrix')
@@ -139,7 +140,8 @@ def matrix2csv(m_name: str, names:list, matrix: np.ndarray, arg) -> Path|None:
     #         writer.writerow(line)
     header = ['Name'] + names
     col_name = np.array([names]).T
-    data = np.hstack([col_name, matrix])
+    matrix_s = np.strings.mod(f'%.{precision}f', matrix)
+    data = np.hstack([col_name, matrix_s])
     all_data = np.vstack([header, data])
     np.savetxt(out_file, all_data, fmt='%s', delimiter=',')
     log.info(f'Output matrix {out_file}')
