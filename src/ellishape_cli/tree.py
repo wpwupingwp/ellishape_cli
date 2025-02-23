@@ -167,26 +167,22 @@ def get_distance_matrix(names, data, arg):
     futures = []
     data = data.astype(np.float16)
     # garbage collect to avoid out of memory
-    n_batch = 1000
+    # n_batch = 1000
     with ProcessPoolExecutor() as executor:
-        tasks_n = 0
+        # tasks_n = 0
         for i in range(len(data)):
             for j in range(i+1):
                 a_name = names[i]
                 b_name = names[j]
                 a = data[i]
                 b = data[j]
-                # a = data[i].copy().reshape(-1, 1, 2)
-                # b = data[j].copy().reshape(-1, 1, 2)
-                # a = data[i].reshape(-1, 1, 2).astype(np.float16)
-                # b = data[j].reshape(-1, 1, 2).astype(np.float16)
                 future = executor.submit(
                     get_distance, a_name, b_name, a, b,
                     get_h_dist, get_s_dist, get_f_dist)
                 futures.append(future)
-                tasks_n += 1
-                if tasks_n % n_batch == 0:
-                    pass
+                # tasks_n += 1
+                # if tasks_n % n_batch == 0:
+                #     pass
     for r in futures:
         result = r.result()
         pair_name, e_dist, h_dist, s_dist, f_dist = result
