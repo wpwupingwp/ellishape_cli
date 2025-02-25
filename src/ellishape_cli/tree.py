@@ -176,7 +176,6 @@ def get_distance_matrix2(data, no_factor=False):
     m, n = data.shape
     data = data.reshape((m, -1)).astype(np.float64)
     s_pdist = pdist(data)
-    # todo: no factor? 1/T
     # todo: cosine?
     if no_factor:
         log.warning('Set factor of euclidean distance matrix to 1')

@@ -11,7 +11,8 @@ idx = np.arange(a.shape[0])+1
 # change code according to format
 a1 = np.strings.replace(a[:, 0], '\\', '_')
 a2 = np.strings.replace(a1, 'D:_dataset_hs_2024419_', '')
-a3 = np.strings.partition(a2, '_')[0]
+# a3 = np.strings.partition(a2, '_')[0]
+a3 = np.strings.partition(a2, '(')[0]
 
 out = np.stack([idx, a3]).T
 a[:, 0] = idx
