@@ -129,8 +129,8 @@ def matrix2csv(m_name: str, names:list, matrix: np.ndarray, arg) -> Path|None:
 def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
                  get_h_dist=False, get_s_dist=False):
     pair_name = f'{a_name}-{b_name}'
-    a = a_raw.copy().reshape(-1, 1, 2)
-    b = b_raw.copy().reshape(-1, 1, 2)
+    a = a_raw.reshape(-1, 1, 2)
+    b = b_raw.reshape(-1, 1, 2)
     if a_name == b_name:
         return pair_name, 0, 0
     # Euclidean distance * sqrt(len(dots))
@@ -304,7 +304,7 @@ def matrix_to_kinds(sample_names: list, matrix: np.ndarray[float],
     return kind_mean_matrix_, kind_std_matrix_
 
 
-def PCA(matrix, kind_list, arg):
+def PCA(matrix, kind_list):
     matrix = matrix.astype(np.float64)
     # ref: ShyBoy233
     std = ((matrix - matrix.mean(axis=0)) / matrix.std(axis=0))
@@ -361,7 +361,7 @@ def get_tree():
 
     read_time = timer()
     if arg.pca:
-        PCA(data, kind_list, arg)
+        PCA(data, kind_list)
     pca_time = timer()
 
     e_dist_matrix = get_distance_matrix2(data)
@@ -387,8 +387,8 @@ def get_tree():
             matrix2csv(m2_name, kinds, kind_mean_matrix, arg)
             matrix2csv(m3_name, kinds, kind_std_matrix, arg)
             build_nj_tree2(m2_name, kinds, kind_mean_matrix, arg)
-
     end = timer()
+
     log.info(f'{len(names):<10} samples')
     log.info(f'{len(data)*(len(data)-1)//2:<10d} pairs')
     log.info(f'Total time elapsed: {end - start:.3f}')
