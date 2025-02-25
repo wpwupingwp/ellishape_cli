@@ -116,9 +116,10 @@ def matrix_to_tril(old_matrix: np.ndarray[float]) -> list[list[float]]:
     return result
 
 
-def matrix2csv(m_name: str, names:list, matrix: np.ndarray, arg) -> Path|None:
+def matrix2csv(m_name: str, names: list, matrix: np.ndarray,
+               out_path: Path) -> Path:
     precision = 10
-    out_file = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
+    out_file = out_path.parent / f'{out_path.name}-{m_name}.matrix.csv'
     header = ['Name'] + names
     col_name = np.array([names]).T
     matrix_s = np.strings.mod(f'%.{precision}f', matrix)
@@ -188,10 +189,8 @@ def get_distance_matrix2(data, no_factor=False):
     return result
 
 
-def get_distance_matrix(names, data, arg):
+def get_distance_matrix(names, data, get_s_dist: bool, get_h_dist: bool):
     # slow and use large mem
-    get_s_dist = arg.s_dist
-    get_h_dist = arg.h_dist
     h_dist_matrix, s_dist_matrix = [], []
     name_result = dict()
     # parallel
@@ -262,21 +261,16 @@ def get_distance_matrix(names, data, arg):
 #     return tree
 
 
-def build_nj_tree2(m_name:str, names: np.array, matrix: np.ndarray[float], arg):
-    out_tree = arg.input.parent / f'{arg.output}-{m_name}.nwk'
-    if m_name == 'h_dist' and not arg.h_dist:
-        log.warning('Skip h_dist tree')
-        return
-    if m_name == 's_dist' and not arg.s_dist:
-        log.warning('Skip s_dist tree')
-        return
+def build_nj_tree2(m_name:str, names: np.array, matrix: np.ndarray[float],
+                   out_path) -> Path:
+    out_tree = out_path.parent / f'{out_path.name}-{m_name}.nwk'
     log.debug('Building NJ tree')
     # matrix = tril_to_matrix(data)
     dis_matrix = DistanceMatrix2(matrix, names)
     tree = nj(dis_matrix)
     tree.write(out_tree, 'newick')
     log.info(f'Output tree {out_tree}')
-    return
+    return out_tree
 
 
 def matrix_to_kinds(sample_names: list, matrix: np.ndarray[float],
@@ -353,6 +347,7 @@ def get_tree():
     start = timer()
     arg = parse_args()
     arg.input = Path(arg.input).absolute().resolve()
+    out_path = arg.input.parent / arg.output
     check_input_csv(arg.input)
 
     names, data = read_csv(arg.input)
@@ -374,7 +369,8 @@ def get_tree():
 
     e_dist_matrix = get_distance_matrix2(data, arg.no_factor)
     if arg.s_dist or arg.h_dist:
-        h_dist_matrix, s_dist_matrix = get_distance_matrix(names, data, arg)
+        h_dist_matrix, s_dist_matrix = get_distance_matrix(
+            names, data, arg.s_dist, arg.h_dist)
     else:
         h_dist_matrix, s_dist_matrix = None, None
 
@@ -385,16 +381,16 @@ def get_tree():
             [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
         if matrix is None:
             continue
-        matrix2csv(m_name, names, matrix, arg)
-        build_nj_tree2(m_name, names, matrix, arg)
+        matrix2csv(m_name, names, matrix, out_path)
+        build_nj_tree2(m_name, names, matrix, out_path)
         if arg.kind is not None:
             kind_mean_matrix, kind_std_matrix = matrix_to_kinds(
                 names, matrix, name_kind, kinds)
             m2_name = f'{m_name}-kind_mean'
             m3_name = f'{m_name}-kind_std'
-            matrix2csv(m2_name, kinds, kind_mean_matrix, arg)
-            matrix2csv(m3_name, kinds, kind_std_matrix, arg)
-            build_nj_tree2(m2_name, kinds, kind_mean_matrix, arg)
+            matrix2csv(m2_name, kinds, kind_mean_matrix, out_path)
+            matrix2csv(m3_name, kinds, kind_std_matrix, out_path)
+            build_nj_tree2(m2_name, kinds, kind_mean_matrix, out_path)
     end = timer()
 
     log.info(f'{len(names):<10} samples')
