@@ -33,7 +33,10 @@ def parse_args():
                      help='calculate Hausdorff distance')
     arg.add_argument('-s_dist', action='store_true',
                      help='calculate shape context distance')
-    arg.add_argument('-pca', action='store_true')
+    debug = arg.add_argument_group('Debug')
+    debug.add_argument('-pca', action='store_true')
+    debug.add_argument('-no_factor', action='store_true',
+                       help='set factor of euclidean distance matrix to 1')
     return arg.parse_args()
 
 
@@ -166,14 +169,19 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
 #             yield a_name, b_name, a, b, h, s
 #
 #
-def get_distance_matrix2(data):
+def get_distance_matrix2(data, no_factor=False):
     # samples, dots*2
     log.debug('Start calculating euclidean distance')
     m, n = data.shape
     data = data.reshape((m, -1)).astype(np.float64)
     s_pdist = pdist(data)
     # todo: no factor? 1/T
-    factor = np.sqrt(1/(n/2))
+    # todo: cosine?
+    if no_factor:
+        log.warning('Set factor of euclidean distance matrix to 1')
+        factor = 1
+    else:
+        factor = np.sqrt(1/(n/2))
     # factor = 1
     s_pdist2 = s_pdist * factor
     result = squareform(s_pdist2)
@@ -364,7 +372,7 @@ def get_tree():
         PCA(data, kind_list)
     pca_time = timer()
 
-    e_dist_matrix = get_distance_matrix2(data)
+    e_dist_matrix = get_distance_matrix2(data, arg.no_factor)
     if arg.s_dist or arg.h_dist:
         h_dist_matrix, s_dist_matrix = get_distance_matrix(names, data, arg)
     else:
