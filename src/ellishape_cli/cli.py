@@ -74,8 +74,8 @@ def get_max_contour(gray):
     _, gray_bin = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     # find contours
     contours, _ = cv2.findContours(gray_bin, cv2.RETR_EXTERNAL,
-                                   cv2.CHAIN_APPROX_SIMPLE)
-                                   # cv2.CHAIN_APPROX_NONE)
+                                   # cv2.CHAIN_APPROX_SIMPLE)
+                                   cv2.CHAIN_APPROX_NONE)
     if not contours:
         return None
     max_contour = max(contours, key=cv2.contourArea)
@@ -335,12 +335,14 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     # ro, sc, re, y_sy, x_sy, sta, trans = [False]*7
     # Remove DC components
     if trans:
+        log.debug('trans')
         A0 = 0
         C0 = 0
 
     if re:
         CrossProduct = a[0] * d[0] - c[0] * b[0]
         if CrossProduct < 0:
+            log.debug('re')
             b = -b
             d = -d
 
@@ -366,6 +368,7 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     if axis_theta1 < axis_theta2:
         theta1 += np.pi / 2
 
+    log.debug(f'{theta1=}')
     costh1 = np.cos(theta1)
     sinth1 = np.sin(theta1)
     a_star_1 = costh1 * a[0] + sinth1 * b[0]
@@ -379,10 +382,13 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     if c_star_1 < 0 < a_star_1:
         psi1 = np.pi * 2 - psi1
 
+    log.debug(f'{psi1=}')
+
     E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
     # print(E)
 
     if sc:
+        log.debug('sc')
         a /= E
         b /= E
         c /= E
@@ -393,6 +399,7 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     normalized_all = np.zeros((n, 4))
 
     if ro:
+        log.debug('ro')
         for i in range(n):
             normalized = np.dot([[cospsi1, sinpsi1], [-sinpsi1, cospsi1]],
                                 [[a[i], b[i]], [c[i], d[i]]])
@@ -406,6 +413,7 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     normalized_all_1 = np.zeros((n, 4))
 
     if sta:
+        log.debug('sta')
         for i in range(n):
             normalized_1 = np.dot([[a[i], b[i]], [c[i], d[i]]], [
                 [np.cos(theta1 * (i + 1)), -np.sin(theta1 * (i + 1))],
@@ -425,6 +433,7 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     if y_sy:
         if n > 1:
             if a[1] < -EPS:
+                log.debug('y_sy')
                 for i in range(1, n):
                     signval = (-1) ** (((i + 1) % 2) + 1)
                     a[i] = signval * a[i]
@@ -436,9 +445,13 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     if x_sy:
         if n > 1:
             if c[1] < -EPS:
+                log.debug('x_sy')
                 b[1:] *= -1
                 c[1:] *= -1
 
+    log.debug([efd[0][0], efd[1][0], efd[2][0], efd[3][0]])
+    log.debug(normalized_all[0])
+    log.debug(normalized_all_1[0])
     return a, b, c, d, A0, C0
 
 
@@ -789,7 +802,7 @@ def output_csv(input_file, out_file, dots, a, b, c, d, n_order, n_dots):
 
 
 def plot_result(out_file, efd_result, max_contour, dots_t, n_dots) -> Path:
-    out_img_file = out_file.with_suffix('.out.pdf')
+    out_img_file = out_file.with_suffix('.out.png')
     # n_order = arg.n_order
     a, b, c, d, A0, C0 = efd_result
     # efd = np.concatenate([a,b,c,d], axis=1)
