@@ -21,6 +21,7 @@ log.add(log_file, format=fmt, level='DEBUG', backtrace=True, diagnose=True,
         filter=NAME,
         mode='a', encoding='utf-8', enqueue=True)
 # simple stdout log
+# log.add(stdout, format=fmt, colorize=True, level='DEBUG', enqueue=True)
 log.add(stdout, format=fmt, colorize=True, level='INFO', enqueue=True)
 # log.info(f'Start {NAME}')
 # log.info(f'Log file {log_file}')
