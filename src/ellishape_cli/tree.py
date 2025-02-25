@@ -116,24 +116,6 @@ def matrix_to_tril(old_matrix: np.ndarray[float]) -> list[list[float]]:
 def matrix2csv(m_name: str, names:list, matrix: np.ndarray, arg) -> Path|None:
     precision = 10
     out_file = arg.input.parent / f'{arg.output}-{m_name}.matrix.csv'
-    if m_name == 'h_dist' and not arg.h_dist:
-        log.warning('Skip h_dist matrix')
-        return None
-    if m_name == 's_dist' and not arg.s_dist:
-        log.warning('Skip s_dist matrix')
-        return None
-    if m_name == 'f_dist' and not arg.f_dist:
-        log.warning('Skip f_dist matrix')
-        return None
-    # with open(out_file, 'w', newline='') as csv_file:
-    #     writer = csv.writer(csv_file)
-    #     header = ['Name', ]
-    #     header.extend(names)
-    #     writer.writerow(header)
-    #     for name, row in zip(names, matrix):
-    #         line = [name,]
-    #         line.extend(row)
-    #         writer.writerow(line)
     header = ['Name'] + names
     col_name = np.array([names]).T
     matrix_s = np.strings.mod(f'%.{precision}f', matrix)
@@ -186,6 +168,7 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
 #
 def get_distance_matrix2(data):
     # samples, dots*2
+    log.debug('Start calculating euclidean distance')
     m, n = data.shape
     data = data.reshape((m, -1)).astype(np.float64)
     s_pdist = pdist(data)
@@ -279,7 +262,7 @@ def build_nj_tree2(m_name:str, names: np.array, matrix: np.ndarray[float], arg):
     if m_name == 's_dist' and not arg.s_dist:
         log.warning('Skip s_dist tree')
         return
-    log.info('Start building NJ tree')
+    log.debug('Building NJ tree')
     # matrix = tril_to_matrix(data)
     dis_matrix = DistanceMatrix2(matrix, names)
     tree = nj(dis_matrix)
@@ -381,20 +364,21 @@ def get_tree():
         PCA(data, kind_list, arg)
     pca_time = timer()
 
-    aa = timer()
     e_dist_matrix = get_distance_matrix2(data)
-    matrix2csv('pdist', names, e_dist_matrix, arg)
-    bb = timer()
-    build_nj_tree2('pdist', names, e_dist_matrix, arg)
-    cc = timer()
+    if arg.s_dist or arg.h_dist:
+        h_dist_matrix, s_dist_matrix = get_distance_matrix(names, data, arg)
+    else:
+        h_dist_matrix, s_dist_matrix = None, None
 
-    h_dist_matrix, s_dist_matrix = get_distance_matrix( names, data, arg)
     matrix_time = timer()
-    write_time = timer()
+
     for m_name, matrix in zip(
             ['e_dist', 'h_dist', 's_dist'],
             [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
+        if matrix is None:
+            continue
         matrix2csv(m_name, names, matrix, arg)
+        build_nj_tree2(m_name, names, matrix, arg)
         if arg.kind is not None:
             kind_mean_matrix, kind_std_matrix = matrix_to_kinds(
                 names, matrix, name_kind, kinds)
@@ -402,33 +386,21 @@ def get_tree():
             m3_name = f'{m_name}-kind_std'
             matrix2csv(m2_name, kinds, kind_mean_matrix, arg)
             matrix2csv(m3_name, kinds, kind_std_matrix, arg)
-            write_time = timer()
             build_nj_tree2(m2_name, kinds, kind_mean_matrix, arg)
-        else:
-            write_time = timer()
-    with ProcessPoolExecutor() as executor:
-        for m_name, matrix in zip(
-                ['e_dist', 'h_dist', 's_dist'],
-                [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
-            executor.submit(build_nj_tree2,m_name, names, matrix, arg)
-            # print(len(r.result()))
 
     end = timer()
-    log.info(f'{len(names)} samples')
-    log.info(f'{len(data)*(len(data)-1)/2} pairs')
+    log.info(f'{len(names):<10} samples')
+    log.info(f'{len(data)*(len(data)-1)//2:<10d} pairs')
     log.info(f'Total time elapsed: {end - start:.3f}')
-    log.info(f'Read: {read_time - start:.3f}')
-    log.info(f'PCA: {pca_time - read_time:.3f}')
-    log.info(f'Matrix: {matrix_time - pca_time:.3f}')
-    log.info(f'Write: {write_time - matrix_time:.3f}')
-
-    log.info(f'pdist matrix {bb-aa:.3f}')
-    log.info(f'pdist tree {cc-bb:.3f}')
+    log.info(f'\t{"Read:":<15} {read_time - start:.3f}')
+    log.info(f'\t{"PCA:":<15} {pca_time - read_time:.3f}')
+    log.info(f'\t{"Matrix:":<15} {matrix_time - pca_time:.3f}')
+    # log.info(f'Write: {write_time - matrix_time:.3f}')
     # diff = np.sum(p_result - e_dist_matrix)
     # log.info(f'difference: {diff:.12f}')
-
-    log.info(f'Tree: {end - write_time:.3f}')
+    log.info(f'\t{"Tree and write:":<15} {end - matrix_time:.3f}')
     log.info('Done')
+    return
 
 if __name__ == '__main__':
     get_tree()
