@@ -368,7 +368,6 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     if axis_theta1 < axis_theta2:
         theta1 += np.pi / 2
 
-    log.debug(f'{theta1=}')
     costh1 = np.cos(theta1)
     sinth1 = np.sin(theta1)
     a_star_1 = costh1 * a[0] + sinth1 * b[0]
@@ -382,7 +381,6 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     if c_star_1 < 0 < a_star_1:
         psi1 = np.pi * 2 - psi1
 
-    log.debug(f'{psi1=}')
 
     E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
     # print(E)
@@ -452,6 +450,9 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     log.debug([efd[0][0], efd[1][0], efd[2][0], efd[3][0]])
     log.debug(normalized_all[0])
     log.debug(normalized_all_1[0])
+    log.info(f'Theta: {np.rad2deg(theta1):.2f}\u00b0')
+    log.info(f'Psi: {np.rad2deg(psi1):.2f}\u00b0')
+    log.info(f'E: {E.item():.2f}')
     return a, b, c, d, A0, C0
 
 
