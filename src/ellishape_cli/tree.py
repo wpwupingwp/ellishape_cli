@@ -261,7 +261,20 @@ def get_distance_matrix(names, data, get_s_dist: bool, get_h_dist: bool):
 #     Phylo.write(tree, out_tree, 'newick')
 #     log.info(f'Output tree {out_tree}')
 #     return tree
+def tree_from_dist(input_file):
+    # todo: edit
+    a = np.loadtxt(input_file, delimiter=',', dtype=str)
+    b = a[1:, 1:].astype(np.float64)
+    b += b.T
+    np.fill_diagonal(b, 0)
+    a[1:, 1:] = b
+    names = a[1:, 0]
 
+    dis_matrix = DistanceMatrix2(b, names)
+    tree = nj(dis_matrix)
+    tree.write('tree.nwk', 'newick')
+    np.savetxt('new.csv', a, delimiter=',', fmt='%s')
+    return
 
 def build_nj_tree2(m_name:str, names: np.array, matrix: np.ndarray[float],
                    out_path) -> Path:
