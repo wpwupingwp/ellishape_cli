@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.spatial.distance import pdist, squareform
+from scipy.optimize import brute, minimize, minimize_scalar
 
 from skbio import DistanceMatrix as DistanceMatrix2
 from skbio.tree import nj
@@ -353,70 +354,45 @@ def min_shape_distance(phi, A_dots, B_efd, n_dots):
     return diff
 
 
-def calibrate(A_efd, B_efd, n_dots=512, method='Powell', draw=False):
-    """
-    Use scipy optimize to get best angle for rotate
-    Args:
-        A: n*4 efd matrix
-        B: n*4 efd matrix
-        n_dots:
+def min_shape_distance2(phi, A_dots, B_dots, n_dots):
+    B_dots_rotated = rotate_dots(B_dots, phi.item())
+    # print(B_a2[0], )
+    data = np.vstack([A_dots.ravel(), B_dots_rotated.ravel()])
+    diff = get_distance_matrix2(data)[0][1]
+    return diff
 
-    Returns:
-        phi: rotate rad
-    """
-    from scipy.optimize import minimize
-    from scipy.optimize import brute #direct
-    from scipy.optimize import minimize_scalar
+
+def calibrate(A_dots, B_efd, n_dots, method='Powell'):
     x0 = np.array([0])
-    A_a, A_b, A_c, A_d = np.hsplit(A_efd, 4)
-    A_dots = get_curve_from_efd(A_a, A_b, A_c, A_d, A_a.shape[0], n_dots)
-    result = brute(min_shape_distance, args=(A_dots, B_efd, n_dots), Ns=360,
-                   ranges=[(0, np.pi * 2)], workers=8, full_output=True)
     if method == 'Bounded':
-        result2 = minimize_scalar(min_shape_distance, args=(A_dots, B_efd, n_dots),
+        result2 = minimize_scalar(min_shape_distance2, args=(A_dots, B_efd, n_dots),
                                   method='Bounded',
                                   bounds=(0, np.pi*2))
     else:
-        result2 = minimize(min_shape_distance, x0, args=(A_dots, B_efd, n_dots),
+        result2 = minimize(min_shape_distance2, x0, args=(A_dots, B_efd, n_dots),
                           method=method,
                           bounds=[(0, np.pi*2)])
-
-    x_result, y_result, x_list, y_list = result
-    log.info(f'Brute force result: {np.rad2deg(x_result.item()):.6f}\u00b0 '
-             f'with {y_result.item():.6f} distance')
-
-
-    B_result = rotate_efd(B_efd, x_result.item())
-    B_a2, B_b2, B_c2, B_d2 = np.hsplit(B_result, 4)
-    B_dots2 = get_curve_from_efd(B_a2, B_b2, B_c2, B_d2, B_a2.shape[0],
-                                 n_dots)
-
-    # print(B_result)
-    # print(B_dots[:10])
-    if draw:
-        import matplotlib.pyplot as plt
-        B_a, B_b, B_c, B_d = np.hsplit(B_efd, 4)
-        B_dots = get_curve_from_efd(B_a, B_b, B_c, B_d, B_a.shape[0], n_dots)
-
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 20))
-        ax1.set_title('Distance')
-        ax2.set_title('Shape')
-        ax1.plot(x_list, y_list)
-        ax1.plot(x_result, y_result, 'ro')
-        ax1.set_xticks(np.arange(0,9)*np.pi/4,
-                   [rf'$\frac{{{i}\pi}}{{4}}$' for i in range(9)])
-        ax1.set_xlabel('Degree')
-        ax1.set_ylabel('Euclidean distance')
-
-        ax2.plot(A_dots[:, 0], A_dots[:, 1], 'b--', label='A', linewidth=2, alpha=0.8)
-        ax2.plot(B_dots[:, 0], B_dots[:, 1], 'g:', label='B')
-        ax2.plot(B_dots2[:, 0], B_dots2[:, 1], 'r-.', label='B rotated', linewidth=2, alpha=0.8)
-        ax2.legend()
-        ax2.set_aspect('equal')
-        plt.savefig('rotate_result.png')
-    if result2.success:
-        return result2
     return result2
+
+
+def rotate_efd2(efd: np.ndarray, angle: float):
+    """
+    Args:
+        efd: n*4 matrix
+        angle: rad
+    Returns:
+        new_efd: n*4 matrix
+    """
+    # [[a, b, c, d]]
+    # print(efd.shape)
+    rotate_matrix = np.array([[np.cos(angle), -1*np.sin(angle)],
+                              [np.sin(angle), np.cos(angle)]])
+    # [[a, b], [c, d]]
+    efd_matrix = efd.reshape(-1, 2, 2)
+    # print(efd[0])
+    # print(efd_matrix[0])
+    new_efd = np.dot(rotate_matrix, efd_matrix).reshape(-1, 4)
+    return new_efd
 
 
 def rotate_efd(efd: np.ndarray, angle: float):
@@ -427,11 +403,29 @@ def rotate_efd(efd: np.ndarray, angle: float):
     Returns:
         new_efd: n*4 matrix
     """
+    # [[a, b, c, d]]
+    # todo: simplify
+    # todo: rotate orientation
+    angle *= -1
     rotate_matrix = np.array([[np.cos(angle), -1*np.sin(angle)],
                               [np.sin(angle), np.cos(angle)]])
-    # efd_matrix = np.array([[a, b], [c, d]])
+    # [[a, b], [c, d]]
     efd_matrix = efd.reshape(-1, 2, 2)
-    new_efd = np.dot(efd_matrix, rotate_matrix).reshape(-1, 4)
+    # temp = np.dot(rotate_matrix, efd_matrix)
+    # return temp.reshape(-1, 4)
+    # print('old', efd_matrix.shape, efd_matrix[0])
+    # [[a, c], [b, d]]
+    tmp_matrix = efd_matrix.transpose(0, 2, 1)
+    # print('new', dots_matrix.shape, dots_matrix[0])
+    # [[a, b, c, d]]
+    new_efd = np.dot(tmp_matrix, rotate_matrix).reshape(-1, 4)
+    # print(new_efd.shape)
+    # [[a, c], [b, d]]
+    new_efd = new_efd.reshape(-1, 2, 2)
+    # [[a, b], [c, d]]
+    new_efd = new_efd.transpose(0, 2, 1)
+    # [[a, b, c, d]]
+    new_efd = new_efd.reshape(-1, 4)
     return new_efd
 
 
@@ -439,11 +433,12 @@ def rotate_dots(dots: np.ndarray, angle: float):
     """
     rotate clockwise
     Args:
-        efd: n*4 matrix
+        dots: n*2 matrix
         angle: rad
     Returns:
-        new_efd: n*4 matrix
+        new_dots: n*2 matrix
     """
+    angle *= -1
     dots_matrix = dots.reshape(-1, 2)
     rotate_matrix = np.array([[np.cos(angle), -1*np.sin(angle)],
                               [np.sin(angle), np.cos(angle)]])
@@ -451,16 +446,38 @@ def rotate_dots(dots: np.ndarray, angle: float):
     return new_dots
 
 
-def x(A, B):
+def get_min_rotate(A, B, draw=True):
     A_efd = A.reshape(-1, 4).astype(np.float64)
     B_efd = B.reshape(-1, 4).astype(np.float64)
+    n_dots = 256
     # B_efd = rotate(A_efd, np.pi/3)
     # print(A_efd.shape, A_efd.ndim)
     # for m in ('Bounded', 'Powell', 'Nelder-Mead', 'L-BFGS-B', 'TNC'):
+
+    A_a, A_b, A_c, A_d = np.hsplit(A_efd, 4)
+    A_dots = get_curve_from_efd(A_a, A_b, A_c, A_d, A_a.shape[0], n_dots)
+    B_a, B_b, B_c, B_d = np.hsplit(B_efd, 4)
+    B_dots = get_curve_from_efd(B_a, B_b, B_c, B_d, B_a.shape[0], n_dots)
+
+    # brute force, 360 times
+    # result = brute(min_shape_distance, args=(A_dots, B_efd, n_dots), Ns=360,
+    #                ranges=[(0, np.pi * 2)], workers=8, full_output=True)
+    result = brute(min_shape_distance2, args=(A_dots, B_dots, n_dots), Ns=360,
+                   ranges=[(0, np.pi * 2)], workers=8, full_output=True)
+    x_result, y_result, x_list, y_list = result
+    log.info(f'Brute force result: '
+             f'-{np.rad2deg(np.pi*2-x_result.item()):.6f}\u00b0 '
+             f'with {y_result.item():.6f} distance')
+    B_result = rotate_efd(B_efd, x_result.item())
+    B_a2, B_b2, B_c2, B_d2 = np.hsplit(B_result, 4)
+    B_dots2 = get_curve_from_efd(B_a2, B_b2, B_c2, B_d2, B_a2.shape[0],
+                                 n_dots)
+
     for m in ('Bounded', 'Powell'):
         log.warning(m)
         try:
-            c_result = calibrate(A_efd, B_efd, method=m)
+            # c_result = calibrate(A_dots, B_efd, n_dots, method=m)
+            c_result = calibrate(A_dots, B_dots, n_dots, method=m)
         except Exception:
             log.error(f'{m} failed')
             continue
@@ -468,9 +485,29 @@ def x(A, B):
         log.info(m)
         # log.info(c_result.message)
         log.info(f'{c_result.nit} iterations')
-        log.info(f'Rotate B {np.rad2deg(c_result.x).item():.6f}\u00b0')
+        log.info(f'Rotate B -{np.rad2deg(np.pi*2-c_result.x.item()):.6f}\u00b0')
         log.info(f'Minimize distance {c_result.fun:.6f}')
         # log.info(c_result)
+    if draw:
+        import matplotlib.pyplot as plt
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
+        ax1.set_title('Distance')
+        ax2.set_title('Shape')
+        ax1.plot(x_list, y_list)
+        ax1.plot(x_result, y_result, 'ro')
+        ax1.set_xticks(np.arange(0,9)*np.pi/4,
+                       [rf'$\frac{{{i}\pi}}{{4}}$' for i in range(9)])
+        ax1.set_xlabel('Degree')
+        ax1.set_ylabel('Euclidean distance')
+
+        ax2.plot(A_dots[:, 0], A_dots[:, 1], 'b', label='A', linewidth=2, alpha=0.8)
+        ax2.plot(B_dots[:, 0], B_dots[:, 1], 'g-.', label='B')
+        ax2.plot(B_dots2[:, 0], B_dots2[:, 1], 'r-', label='B rotated', linewidth=2, alpha=0.8)
+        ax2.legend()
+        ax2.set_aspect('equal')
+        plt.show()
+        # plt.savefig('rotate_result.png')
     return
 
 
@@ -489,14 +526,16 @@ def get_tree():
         raise SystemExit(-1)
 
     # optimize?
-    # raw = data[1].reshape(-1, 4).astype(np.float64)
-    # # raw2 = data[2].reshape(-1, 4).astype(np.float64)
+    raw = data[0].reshape(-1, 4).astype(np.float64)
+    raw2 = data[1].reshape(-1, 4).astype(np.float64)
     # raw2 = raw.copy()
-    # rad = np.pi / 3
-    # new = rotate_efd(raw2, rad)
-    # log.info(f'Rotate {np.rad2deg(rad):.6f}\u00b0')
-    # x(raw, new)
-    # raise SystemExit
+    deg = 45.005
+    rad = np.deg2rad(deg)
+    log.info(f'Rotate {np.rad2deg(rad):.6f}\u00b0')
+    new = rotate_efd(raw2, rad)
+    get_min_rotate(raw, new)
+    print(np.sum(new-rotate_efd(new, -deg)))
+    raise SystemExit
     # test optimize
 
 
