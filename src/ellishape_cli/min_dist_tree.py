@@ -38,6 +38,7 @@ def min_dist_on_angle(phi, A_dots, B_dots):
     m, n = B_dots.shape
     factor = np.sqrt(1/(m))
     diff = np.linalg.norm(A_dots.ravel()-B_dots_rotated.ravel()) * factor
+    # diff = np.linalg.norm(np.roll(A_dots.ravel(), 64)-B_dots_rotated.ravel()) * factor
     # A2 = A_dots.ravel()
     # B2 = B_dots_rotated.ravel()
     # for i in range(m):
@@ -57,13 +58,24 @@ def min_dist_on_offset(A_dots, B_dots):
     n = A_dots.shape[0]
     # (x, y)
     m = n * 2
-    B_roll_matrix = np.empty((m, m))
+    # todo: should be 1
+    factor = np.sqrt(1/n)
+    B_roll_matrix = np.empty((n, m))
     for i in range(0, n):
         B_roll_matrix[i] = np.roll(B_, -i*2)
-    dist = np.linalg.norm(A_-B_roll_matrix, axis=1)
+    # print(B_roll_matrix2.shape, B_roll_matrix.shape)
+    dist = np.linalg.norm(A_-B_roll_matrix, axis=1) * factor
     offset = np.argmin(dist)
     b = timer()
     log.warning(f'Min dist on offset cost {b-a:.6f} seconds')
+    row_indice = (np.arange(m)+np.arange(m)[::2, None]) % m
+    B_roll_matrix2 = B_[row_indice].transpose(0, 1)
+    dist2 = np.linalg.norm(A_-B_roll_matrix2, axis=1) * factor
+    c = timer()
+    offset2 = np.argmin(dist2)
+    log.error(f'Min dist on offset cost {c-b:.6f} seconds')
+    # print('offset,dist', offset, dist[offset], offset2, dist2[offset2])
+    # print(np.sum(B_roll_matrix2-B_roll_matrix))
     return offset, dist[offset]
 
 
@@ -196,6 +208,7 @@ def use_brute(A_dots, B_dots):
 
 
 def plot(brute_result, A_dots, B_dots, B_dots2, phi, n_dots):
+    plt.rcParams.update({'font.size': 20})
     x_result, y_result, x_list, y_list = brute_result
 
     B_dots3 = rotate_dots(B_dots, phi)
@@ -221,8 +234,9 @@ def plot(brute_result, A_dots, B_dots, B_dots2, phi, n_dots):
     axs[0, 1].set_aspect('equal')
 
     x_ = np.arange(n_dots)
-    y3 = [np.linalg.norm(A_dots.ravel()-np.roll(B_dots.ravel(), -i*2)) for i in range(n_dots)]
-    y4 = [np.linalg.norm(A_dots.ravel()-np.roll(B_dots2.ravel(), -i*2)) for i in range(n_dots)]
+    factor = np.sqrt(1/n_dots)
+    y3 = [factor*np.linalg.norm(A_dots.ravel()-np.roll(B_dots.ravel(), -i*2)) for i in range(n_dots)]
+    y4 = [factor*np.linalg.norm(A_dots.ravel()-np.roll(B_dots2.ravel(), -i*2)) for i in range(n_dots)]
     x3_min, y3_min = min_dist_on_offset(A_dots, B_dots)
     x4_min, y4_min = min_dist_on_offset(A_dots, B_dots2)
     # axs[1, 0].plot(x3, y3, 'ro', linewidth=1)
@@ -247,7 +261,7 @@ def main():
         log.error('Empty input')
         raise SystemExit(-1)
 
-    n_dots = 256
+    n_dots = 128
     A_efd = data[0].reshape(-1, 4).astype(np.float64)
     B_efd = data[1].reshape(-1, 4).astype(np.float64)
     # B_efd = A_efd.copy()
