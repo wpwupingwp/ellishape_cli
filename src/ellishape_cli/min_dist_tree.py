@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 from pathlib import Path
+from timeit import default_timer as timer
 
 
 def min_shape_distance_old(phi, A_dots, B_efd, n_dots):
@@ -138,89 +139,25 @@ def calibrate2(A_dots, B_efd, n_dots, method='Powell'):
     return result2
 
 
-
-def get_min_rotate(A, B, draw=False):
-    n_dots = 128
-    # B_efd = rotate(A_efd, np.pi/3)
-    # print(A_efd.shape, A_efd.ndim)
-    # for m in ('Bounded', 'Powell', 'Nelder-Mead', 'L-BFGS-B', 'TNC'):
-
-    # todo
-    B_dots = np.roll(B_dots, 20)
-
-    # brute force, 360 times
-    # result = brute(min_shape_distance, args=(A_dots, B_efd, n_dots), Ns=360,
-    #                ranges=[(0, np.pi * 2)], workers=8, full_output=True)
-    # todo: angle and roll
-    result = brute(min_shape_distance2, args=(A_dots, B_dots), Ns=360,
-                   ranges=[(0, np.pi * 2)], workers=8, full_output=True)
-    x_result, y_result, x_list, y_list = result
-    log.info(x_result)
-    log.info(y_result)
-    # log.info(f'Brute force result: '
-    #          f'-{np.rad2deg(np.pi*2-x_result.item()):.6f}\u00b0 '
-    #          f'with {y_result.item():.6f} distance')
-    B_result = rotate_efd(B_efd, x_result[0].item())
-    B_a2, B_b2, B_c2, B_d2 = np.hsplit(B_result, 4)
-    B_dots2 = get_curve_from_efd(B_a2, B_b2, B_c2, B_d2, B_a2.shape[0],
-                                 n_dots)
-
-    for m in ('Bounded', 'Powell'):
-        # for m in ('Powell',):
-        log.warning(m)
-        try:
-            # c_result = calibrate(A_dots, B_efd, n_dots, method=m)
-            c_result = calibrate(A_dots, B_dots, n_dots, method=m)
-        except Exception:
-            raise
-            log.error(f'{m} failed')
-            continue
-        # assert c_result is not None
-        log.info(m)
-        # log.info(c_result.message)
-        log.info(c_result)
-        # log.info(f'{c_result.nit} iterations')
-        # log.info(f'Rotate B -{np.rad2deg(np.pi*2-c_result.x.item()):.6f}\u00b0')
-        log.info(f'Minimize distance {c_result.fun:.6f}')
-        # log.info(c_result)
-    if draw:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
-        ax1.set_title('Distance')
-        ax2.set_title('Shape')
-        ax1.plot(x_list, y_list)
-        ax1.plot(x_result, y_result, 'ro')
-        ax1.set_xticks(np.arange(0,9)*np.pi/4,
-                       [rf'$\frac{{{i}\pi}}{{4}}$' for i in range(9)])
-        ax1.set_xlabel('Degree')
-        ax1.set_ylabel('Euclidean distance')
-
-        ax2.plot(A_dots[:, 0], A_dots[:, 1], 'b', label='A', linewidth=2, alpha=0.8)
-        ax2.plot(B_dots[:, 0], B_dots[:, 1], 'g-.', label='B')
-        ax2.plot(B_dots2[:, 0], B_dots2[:, 1], 'r-', label='B rotated', linewidth=2, alpha=0.8)
-        ax2.legend()
-        ax2.set_aspect('equal')
-        plt.show()
-        # plt.savefig('rotate_result.png')
-    return
-
 def use_brute(A_dots, B_dots, B_efd, n_dots):
-    log.info('Start brute')
+    start = timer()
     # brute_result = brute(min_shape_distance_old, args=(A_dots, B_efd, n_dots), Ns=360,
     brute_result = brute(min_shape_distance, args=(A_dots, B_dots), Ns=360,
                          ranges=[(0, np.pi * 2)], workers=8, full_output=True)
-    log.info('Done brute')
+    end = timer()
+    log.warning(f'Brute force on angle cost {end-start:.6f} seconds')
     x_result, y_result, x_list, y_list = brute_result
-    log.info(x_result)
-    log.info(y_result)
+    log.debug(x_result)
+    log.debug(y_result)
     phi = x_result[0].item()
     dist = y_result
     rotated_efd = rotate_efd(B_efd, phi)
     B_a2, B_b2, B_c2, B_d2 = np.hsplit(rotated_efd, 4)
     dots2_2 = get_curve_from_efd(B_a2, B_b2, B_c2, B_d2, B_a2.shape[0], n_dots)
     dots2_3 = rotate_dots(B_dots, phi)
-    log.info('rotated efd->dots vs rotated dots', np.sum(dots2_2-dots2_3))
-    log.info(f'Rotate B -{np.rad2deg(np.pi*2-phi):.6f}\u00b0')
-    log.info(f'Minimize distance {dist:.6f}')
+    log.info(f'\trotated efd->dots vs rotated dots: {np.sum(dots2_2-dots2_3)}')
+    log.info(f'\tRotate B -{np.rad2deg(np.pi*2-phi):.6f}\u00b0')
+    log.info(f'\tMinimize distance {dist:.6f}')
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
     ax1.set_title('Distance')
@@ -266,26 +203,29 @@ def main():
     B_dots = get_curve_from_efd(B_a, B_b, B_c, B_d, B_a.shape[0], n_dots)
 
     phi, dist = use_brute(A_dots, B_dots, B_efd, n_dots)
-    log.info(f'Brute result: {phi}, {dist}')
-    log.info(f'{np.sum(B_efd - rotate_efd(B_efd, -deg))}')
+    # log.info(f'Brute result: {phi}, {dist}')
     for m in ('Bounded', 'Powell'):
         # for m in ('Powell',):
-        log.warning(m)
+        start2 = timer()
         try:
-            # c_result = calibrate(A_dots, B_efd, n_dots, method=m)
-            c_result = calibrate(A_dots, B_dots, n_dots, method=m)
-        except Exception:
+            result2 = calibrate(A_dots, B_dots, n_dots, method=m)
+            phi = result2.x.item()
+            dist = result2.fun
+            end2 = timer()
+            log.warning(f'{m} method on angle cost {end2-start2:.6f} seconds')
+            # log.info(result2.message)
+            # log.info(result2)
+            log.info(f'\t{result2.nit} iterations')
+            log.info(f'\tRotate B -{np.rad2deg(np.pi*2-phi):.6f}\u00b0')
+            log.info(f'\tMinimize distance {dist:.6f}')
+        except Exception as e:
             # raise
             log.error(f'{m} failed')
+            log.error(e)
             continue
-        # assert c_result is not None
-        log.info(m)
-        # log.info(c_result.message)
-        # log.info(c_result)
-        log.info(f'{c_result.nit} iterations')
-        log.info(f'Rotate B -{np.rad2deg(np.pi*2-c_result.x.item()):.6f}\u00b0')
-        log.info(f'Minimize distance {c_result.fun:.6f}')
-        # log.info(c_result)
+        # log.info(result2)
+    log.info(f'Rotate before vs after: '
+             f'{np.sum(B_efd - rotate_efd(B_efd, -deg))}')
     return
 
 
