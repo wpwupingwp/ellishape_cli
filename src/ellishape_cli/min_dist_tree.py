@@ -112,17 +112,17 @@ def min_shape_distance2(phi, A_dots, B_dots):
 
 
 
-def calibrate(A_dots, B_efd, n_dots, method='Powell'):
+def calibrate(A_dots, B_dots, n_dots, method='Powell'):
     x0 = np.array([0])
     if method == 'Bounded':
-        result2 = minimize_scalar(min_shape_distance2, args=(A_dots, B_efd, n_dots),
+        result = minimize_scalar(min_shape_distance, args=(A_dots, B_dots),
                                   method='Bounded',
                                   bounds=(0, np.pi*2))
     else:
-        result2 = minimize(min_shape_distance2, x0, args=(A_dots, B_efd, n_dots),
+        result = minimize(min_shape_distance, x0, args=(A_dots, B_dots),
                            method=method,
                            bounds=[(0, np.pi*2)])
-    return result2
+    return result
 
 
 def calibrate2(A_dots, B_efd, n_dots, method='Powell'):
@@ -252,8 +252,8 @@ def main():
 
     n_dots = 256
     A_efd = data[0].reshape(-1, 4).astype(np.float64)
-    # efd2 = data[1].reshape(-1, 4).astype(np.float64)
-    B_efd = A_efd.copy()
+    B_efd = data[1].reshape(-1, 4).astype(np.float64)
+    # B_efd = A_efd.copy()
 
     deg = 90.005
     rad = np.deg2rad(deg)
@@ -281,9 +281,9 @@ def main():
         # assert c_result is not None
         log.info(m)
         # log.info(c_result.message)
-        log.info(c_result)
-        # log.info(f'{c_result.nit} iterations')
-        # log.info(f'Rotate B -{np.rad2deg(np.pi*2-c_result.x.item()):.6f}\u00b0')
+        # log.info(c_result)
+        log.info(f'{c_result.nit} iterations')
+        log.info(f'Rotate B -{np.rad2deg(np.pi*2-c_result.x.item()):.6f}\u00b0')
         log.info(f'Minimize distance {c_result.fun:.6f}')
         # log.info(c_result)
     return
