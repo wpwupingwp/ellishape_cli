@@ -21,11 +21,37 @@ def min_shape_distance_old(phi, A_dots, B_efd, n_dots):
     return diff
 
 
-def min_shape_distance(phi, A_dots, B_dots):
+def min_shape_distance_old2(phi, A_dots, B_dots):
+    # slow due to pdist and squareform
+    # n_dots * n_samples
     B_dots_rotated = rotate_dots(B_dots, phi.item())
     data = np.vstack([A_dots.ravel(), B_dots_rotated.ravel()])
-    diff = get_distance_matrix2(data)[0][1]
+    dist_matrix = get_distance_matrix2(data)
+    diff = dist_matrix[0][1]
     return diff
+
+
+def min_shape_distance(phi, A_dots, B_dots):
+    B_dots_rotated = rotate_dots(B_dots, phi.item())
+    # n_dots * n_samples
+    m, n = B_dots.shape
+    factor = np.sqrt(1/(m))
+    diff = np.linalg.norm(A_dots.ravel()-B_dots_rotated.ravel()) * factor
+    return diff
+
+
+def min_shape_distance2(phi, A_dots, B_dots):
+    B_dots_rotated = rotate_dots(B_dots, phi.item())
+    # data = np.vstack([A_dots.ravel(), B_dots_rotated.ravel()])
+    for i in np.arange(128):
+        B_dots_rotated_rolled = np.roll(B_dots_rotated, -i, axis=0)
+        data = np.vstack([A_dots.ravel(), B_dots_rotated_rolled.ravel()])
+        exit -1
+    diff = get_distance_matrix2(data)
+    x = np.min(squareform(diff))
+    # diff = get_distance_matrix2(data)[0][1]
+    return x
+
 
 
 # def rotate_efd2(efd: np.ndarray, angle: float):
@@ -99,21 +125,7 @@ def rotate_dots(dots: np.ndarray, angle: float):
     return new_dots
 
 
-def min_shape_distance2(phi, A_dots, B_dots):
-    B_dots_rotated = rotate_dots(B_dots, phi.item())
-    # print(B_a2[0], )
-    # data = np.vstack([A_dots.ravel(), B_dots_rotated.ravel()])
-    data = A_dots.copy().ravel()
-    for i in np.arange(128):
-        data = np.vstack([data, np.roll(B_dots_rotated.ravel(),i)])
-    diff = get_distance_matrix2(data)
-    x = np.min(squareform(diff))
-    # diff = get_distance_matrix2(data)[0][1]
-    return x
-
-
-
-def calibrate(A_dots, B_dots, n_dots, method='Powell'):
+def calibrate(A_dots, B_dots, method='Powell'):
     x0 = np.array([0])
     if method == 'Bounded':
         result = minimize_scalar(min_shape_distance, args=(A_dots, B_dots),
@@ -189,8 +201,8 @@ def main():
 
     n_dots = 256
     A_efd = data[0].reshape(-1, 4).astype(np.float64)
-    B_efd = data[1].reshape(-1, 4).astype(np.float64)
-    # B_efd = A_efd.copy()
+    # B_efd = data[1].reshape(-1, 4).astype(np.float64)
+    B_efd = A_efd.copy()
 
     deg = 90.005
     rad = np.deg2rad(deg)
@@ -202,13 +214,15 @@ def main():
     B_a, B_b, B_c, B_d = np.hsplit(B_efd, 4)
     B_dots = get_curve_from_efd(B_a, B_b, B_c, B_d, B_a.shape[0], n_dots)
 
+    # min_shape_distance2(np.array([rad]), A_dots, B_dots)
+
     phi, dist = use_brute(A_dots, B_dots, B_efd, n_dots)
     # log.info(f'Brute result: {phi}, {dist}')
     for m in ('Bounded', 'Powell'):
         # for m in ('Powell',):
         start2 = timer()
         try:
-            result2 = calibrate(A_dots, B_dots, n_dots, method=m)
+            result2 = calibrate(A_dots, B_dots, method=m)
             phi = result2.x.item()
             dist = result2.fun
             end2 = timer()

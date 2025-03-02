@@ -162,7 +162,7 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
 
 
 def get_distance_matrix2(data, no_factor=False):
-    # samples, dots*2
+    # samples, n_sample rows n_dots columns
     log.debug('Start calculating euclidean distance')
     m, n = data.shape
     data = data.reshape((m, -1)).astype(np.float64)
