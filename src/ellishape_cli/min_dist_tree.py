@@ -8,6 +8,7 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 from pathlib import Path
 from timeit import default_timer as timer
+from os import cpu_count
 
 
 def min_dist_on_angle_old(phi, A_dots, B_efd, n_dots):
@@ -194,7 +195,8 @@ def use_brute(A_dots, B_dots):
     start = timer()
     # brute_result = brute(min_shape_distance_old, args=(A_dots, B_efd, n_dots), Ns=360,
     brute_result = brute(min_dist_on_angle, args=(A_dots, B_dots), Ns=360,
-                         ranges=[(0, np.pi * 2)], workers=8, full_output=True)
+                         ranges=[(0, np.pi * 2)], workers=cpu_count(), 
+                         full_output=True)
     end = timer()
     log.warning(f'Brute force on angle cost {end-start:.6f} seconds')
     x_result, y_result, x_list, y_list = brute_result
@@ -208,13 +210,17 @@ def use_brute(A_dots, B_dots):
 
 
 def plot(brute_result, A_dots, B_dots, B_dots2, phi, n_dots):
-    plt.rcParams.update({'font.size': 20})
+    font_settings = {'legend.fontsize': 'large', 'axes.labelsize': 'x-large',
+                     'xtick.labelsize': 'large', 'ytick.labelsize': 'large',
+                     'axes.titlesize': 'xx-large'}
+    plt.rcParams.update(font_settings)
     x_result, y_result, x_list, y_list = brute_result
 
     B_dots3 = rotate_dots(B_dots, phi)
     log.info(f'rotated efd->dots vs rotated dots: {np.sum(B_dots2-B_dots3)}')
 
-    fig, axs = plt.subplots(2, 2, figsize=(20, 20))
+    fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+    plt.tight_layout(pad=5)
     axs[0, 0].set_title('Angle-Distance (offset=0)')
     axs[0, 1].set_title('Shape')
     axs[1, 0].set_title('Offset-Distance (angle=0)')
