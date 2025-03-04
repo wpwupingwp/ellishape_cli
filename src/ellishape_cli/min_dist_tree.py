@@ -1,4 +1,5 @@
 from scipy.optimize import brute, minimize, minimize_scalar
+from scipy import optimize
 from ellishape_cli.global_vars import log
 from ellishape_cli.cli import get_curve_from_efd, normalize
 from ellishape_cli.tree import get_distance_matrix2, read_csv
@@ -206,7 +207,7 @@ def calibrate(A_dots, B_dots, method='Powell'):
 
 
 def calibrate2(A_dots, B_dots, method='Powell'):
-    # x0 = (np.pi, 32)
+    # x0 = (np.pi, A_dots.shape[0]//2)
     x0 = (0, 0)
     result2 = minimize(min_dist, x0, args=(A_dots, B_dots),
                        method=method,
@@ -227,7 +228,25 @@ def use_brute(A_dots, B_dots):
     log.debug(y_result)
     phi = x_result[0].item()
     dist = y_result
-    log.info(f'\tRotate B -{np.rad2deg(np.pi*2-phi):.6f}\u00b0')
+    log.info(f'\tRotate B {np.rad2deg(phi):.6f}\u00b0')
+    log.info(f'\tMinimize distance {dist:.6f}')
+    return phi, dist, brute_result
+
+
+def use_brute2(A_dots, B_dots):
+    start = timer()
+    # brute_result = brute(min_shape_distance_old, args=(A_dots, B_efd, n_dots), Ns=360,
+    brute_result = brute(min_dist, args=(A_dots, B_dots), Ns=360,
+                         ranges=[(0, np.pi * 2), (0, A_dots.shape[0])],
+                         workers=cpu_count(),
+                         full_output=True)
+    end = timer()
+    log.warning(f'Brute force on angle cost {end-start:.6f} seconds')
+    x_result, y_result, x_list, y_list = brute_result
+    phi, offset = x_result.tolist()
+    dist = y_result
+    log.info(f'\tRotate B {np.rad2deg(phi):.6f}\u00b0')
+    log.info(f'\tOffset B {dist} dots')
     log.info(f'\tMinimize distance {dist:.6f}')
     return phi, dist, brute_result
 
@@ -325,7 +344,7 @@ def plot_3d_v2(A_dots, B_dots):
 
     m_dots = 360
     # x = np.linspace(0, np.pi*2, m_dots)
-    x = np.linspace(np.pi*2, 0, m_dots)
+    x = np.linspace(0, np.pi*2, m_dots)
     y = np.arange(0, m_dots)
     # y = np.arange(m_dots, 0, -1)
     Z = np.zeros((m_dots, m_dots))
@@ -341,7 +360,7 @@ def plot_3d_v2(A_dots, B_dots):
     print(np.argmin(np.argmin(Z, axis=0)), np.min(np.min(Z, axis=0)))
     print('x,y,z', np.unravel_index(np.argmin(Z), Z.shape), np.min(Z))
     x_min, y_min = np.unravel_index(np.argmin(Z), Z.shape)
-    log.critical(f'Min distance {dist_min} on rotate -{np.rad2deg(x[x_min]):.6f}\u00b0 and offset {y[y_min]}')
+    log.critical(f'Min distance {dist_min} on rotate {np.rad2deg(x[x_min]):.6f}\u00b0 and offset {y[y_min]}')
     fig = go.Figure(data=[go.Surface(x=x, y=y, z=Z, colorscale='Portland')])
     # fig.update_traces(
     #     contours_z=dict(show=True, usecolormap=True, highlightcolor='limegreen',
@@ -380,7 +399,7 @@ def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
             # log.info(result2.message)
             # log.info(result2)
             log.info(f'\t{result2.nit} iterations')
-            log.info(f'\tRotate B -{np.rad2deg(np.pi*2-phi):.6f}\u00b0')
+            log.info(f'\tRotate B {np.rad2deg(np.pi*2-phi):.6f}\u00b0')
             log.info(f'\tMinimize distance {dist:.6f}')
         except Exception as e:
             # raise
@@ -393,7 +412,47 @@ def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
              f'{np.sum(B_efd - rotate_efd(B_efd, -deg))}')
     return
 
+def p_res(res):
+    phi, shift = res.x.tolist()
+    dist = res.fun
+    log.info(f'\t{res.nit} iterations {res.success}')
+    log.info(f'\tRotate B {np.rad2deg(phi):.6f}\u00b0')
+    log.info(f'\tOffset B {shift} dots')
+    log.info(f'\tMinimize distance {dist:.6f}')
+
+
 def find_best(A_dots, B_dots, B_efd, deg, offset):
+    use_brute2(A_dots, B_dots)
+    bounds = [(0, np.pi * 2), (0, A_dots.shape[0])]
+    a = timer()
+    res = optimize.dual_annealing(min_dist, bounds, args=(A_dots, B_dots))
+    b = timer()
+    log.warning(f'Dual annealing {b-a:.6f} seconds')
+    p_res(res)
+
+    a = timer()
+    res = optimize.differential_evolution(min_dist, bounds, args=(A_dots, B_dots))
+    b = timer()
+    log.warning(f'Differential evolution {b-a:.6f} seconds')
+    p_res(res)
+
+    a = timer()
+    res = optimize.shgo(min_dist, bounds, args=(A_dots, B_dots))
+    b = timer()
+    log.warning(f'Shgo {b-a:.6f} seconds')
+    p_res(res)
+
+    # a = timer()
+    # res = optimize.basinhopping(min_dist,
+    #                             (0, 0),
+    #                             minimizer_kwargs=dict(method='BFGS',
+    #                                                   args=[A_dots, B_dots])
+    #                             )
+    #
+    # b = timer()
+    # log.warning(f'Basin hopping {b-a:.6f} seconds')
+    # p_res(res)
+
     for m in ('Powell', 'Nelder-Mead', 'TNC', 'L-BFGS-B'):
         start2 = timer()
         try:
@@ -401,11 +460,11 @@ def find_best(A_dots, B_dots, B_efd, deg, offset):
             phi, shift = result2.x.tolist()
             dist = result2.fun
             end2 = timer()
-            log.warning(f'{m} method on angle cost {end2-start2:.6f} seconds')
+            log.warning(f'{m} method cost {end2-start2:.6f} seconds')
             # log.info(result2.message)
             # log.info(result2)
             log.info(f'\t{result2.nit} iterations')
-            log.info(f'\tRotate B -{np.rad2deg(phi):.6f}\u00b0')
+            log.info(f'\tRotate B {np.rad2deg(phi):.6f}\u00b0')
             log.info(f'\tOffset B {shift} dots')
             log.info(f'\tMinimize distance {dist:.6f}')
         except Exception as e:
