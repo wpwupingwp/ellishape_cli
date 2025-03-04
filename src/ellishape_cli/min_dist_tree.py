@@ -72,12 +72,39 @@ def min_dist_on_offset(A_dots, B_dots):
     row_indice = (np.arange(m)+np.arange(m)[::2, None]) % m
     B_roll_matrix2 = B_[row_indice].transpose(0, 1)
     dist2 = np.linalg.norm(A_-B_roll_matrix2, axis=1) * factor
-    c = timer()
     offset2 = np.argmin(dist2)
+    c = timer()
     log.error(f'Min dist on offset cost {c-b:.6f} seconds')
-    # print('offset,dist', offset, dist[offset], offset2, dist2[offset2])
     # print(np.sum(B_roll_matrix2-B_roll_matrix))
+    Ak1 = np.fft.fft(A_dots[:,0])
+    Ak2 = np.fft.fft(A_dots[:,1])
+    Bk1 = np.fft.fft(B_dots[:,0])
+    Bk2 = np.fft.fft(B_dots[:,1])
+    Cxx = np.fft.ifft(Ak1*np.conj(Bk1)).real
+    Cyy = np.fft.ifft(Ak2*np.conj(Bk2)).real
+    delta = -2*Cxx-2*Cyy+np.sum(
+        np.power(A_dots.ravel(), 2)+np.power(B_dots.ravel(), 2)
+    )
+    delta = np.sqrt(delta/n)
+    offset3 = np.argmin(delta)
+    dist3 = delta[offset3]
+    # fft direction
+    offset3 = n - offset3
+    d = timer()
+    log.critical(f'Min dist on offset cost {d-c:.6f} seconds')
+    # print('offset,dist', offset, dist[offset], offset2, dist2[offset2], offset3, delta[offset3], flush=True)
     return offset, dist[offset]
+
+
+def min_dist(x0, A_dots, B_dots):
+    angle, offset = x0
+    B_dots_rotated = rotate_dots(B_dots, angle)
+    # n_dots * n_samples
+    m, n = B_dots.shape
+    factor = np.sqrt(1/(m))
+    B_dots_rotated_offset = np.roll(B_dots_rotated, -offset, axis=0)
+    diff = np.linalg.norm(A_dots.ravel()-B_dots_rotated_offset.ravel()) * factor
+    return diff
 
 
 def min_shape_distance2(phi, A_dots, B_dots):
@@ -178,16 +205,12 @@ def calibrate(A_dots, B_dots, method='Powell'):
     return result
 
 
-def calibrate2(A_dots, B_efd, n_dots, method='Powell'):
-    x0 = np.array([0, 0])
-    if method == 'Bounded':
-        result2 = minimize_scalar(min_shape_distance2, args=(A_dots, B_efd),
-                                  method='Bounded',
-                                  bounds=(0, np.pi*2))
-    else:
-        result2 = minimize(min_shape_distance2, x0, args=(A_dots, B_efd),
-                           method=method,
-                           bounds=[(0, np.pi*2), [0, n_dots]])
+def calibrate2(A_dots, B_dots, method='Powell'):
+    # x0 = (np.pi, 32)
+    x0 = (0, 0)
+    result2 = minimize(min_dist, x0, args=(A_dots, B_dots),
+                       method=method,
+                       bounds=[(0, np.pi*2), [0, A_dots.shape[0]]])
     return result2
 
 
@@ -259,32 +282,89 @@ def plot(brute_result, A_dots, B_dots, B_dots2, phi, n_dots):
     return
 
 
-def main():
-    input_file = Path(argv[1]).resolve()
-    log.info(f'Input {input_file}')
-    names, data = read_csv(input_file)
-    if len(names) == 0:
-        log.error('Empty input')
-        raise SystemExit(-1)
+def plot_3d(A_dots, B_dots):
+    from mpl_toolkits.mplot3d import Axes3D
+    from matplotlib import colormaps  as cm
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(111, projection='3d')
 
-    n_dots = 128
-    A_efd = data[0].reshape(-1, 4).astype(np.float64)
-    B_efd = data[1].reshape(-1, 4).astype(np.float64)
-    # B_efd = A_efd.copy()
+    cmap = cm.get_cmap('coolwarm').copy()
+    m_dots = 360
+    # x = np.linspace(0, np.pi*2, m_dots)
+    x = np.linspace(np.pi*2, 0, m_dots)
+    y = np.arange(0, m_dots)
+    # y = np.arange(m_dots, 0, -1)
+    X, Y = np.meshgrid(x, y)
+    Z = np.zeros((m_dots, m_dots))
+    for i, ix in enumerate(x):
+        for j, jy in enumerate(y):
+            # _ = np.roll(B_dots_rotated, -1*jy)
+            _ = np.roll(B_dots, -1*jy)
+            _2 = rotate_dots(_, ix)
+            Z[i][j] = np.linalg.norm(A_dots.ravel()-_2.ravel())
+    print(np.argmin(np.argmin(Z, axis=0)), np.min(np.min(Z, axis=0)))
+    print(np.argmin(np.argmin(Z, axis=1)), np.min(np.min(Z, axis=1)))
+    print(np.unravel_index(np.argmin(Z), Z.shape), np.min(Z))
+    # surf = ax.plot_surface(X, Y, Z, cmap='bwr')
+    surf = ax.plot_surface(X, Y, Z, cmap=cmap, vmin=Z.min()+0.01)
+    # ax.contourf(X, Y, Z, zdir='z', offset=0, cmap=cmap)
+    # ax.contourf(X, Y, Z, zdir='x', offset=0, cmap=cmap)
+    # ax.contourf(X, Y, Z, zdir='y', offset=0, cmap=cmap)
+    ax.set_xlabel('Rotate angle')
+    ax.set_ylabel('Offset dots')
+    ax.set_zlabel('Distance')
+    plt.colorbar(surf)
+    plt.ion()
+    plt.show()
+    input('Press any key to continue')
+    return
 
-    deg = 90.005
-    rad = np.deg2rad(deg)
-    log.info(f'Rotate {np.rad2deg(rad):.6f}\u00b0')
-    B_efd = rotate_efd(B_efd, rad)
 
-    A_a, A_b, A_c, A_d = np.hsplit(A_efd, 4)
-    A_dots = get_curve_from_efd(A_a, A_b, A_c, A_d, A_a.shape[0], n_dots)
-    B_a, B_b, B_c, B_d = np.hsplit(B_efd, 4)
-    B_dots = get_curve_from_efd(B_a, B_b, B_c, B_d, B_a.shape[0], n_dots)
+def plot_3d_v2(A_dots, B_dots):
+    import plotly.graph_objects as go
 
-    min_dist_on_angle(np.array([rad]), A_dots, B_dots)
-    min_dist_on_offset(A_dots, B_dots)
+    m_dots = 360
+    # x = np.linspace(0, np.pi*2, m_dots)
+    x = np.linspace(np.pi*2, 0, m_dots)
+    y = np.arange(0, m_dots)
+    # y = np.arange(m_dots, 0, -1)
+    Z = np.zeros((m_dots, m_dots))
+    for i, ix in enumerate(x):
+        for j, jy in enumerate(y):
+            # _ = np.roll(B_dots_rotated, -1*jy)
+            _ = rotate_dots(B_dots, ix)
+            _2 = np.roll(_, -1*jy, axis=0)
+            Z[i][j] = np.linalg.norm(A_dots.ravel()-_2.ravel()) * np.sqrt(1/A_dots.shape[0])
+    dist_min = np.min(Z)
+    log.warning(f'Found {len(Z[Z==dist_min])} best dots')
+    print(np.argmin(np.argmin(Z, axis=1)), np.min(np.min(Z, axis=1)))
+    print(np.argmin(np.argmin(Z, axis=0)), np.min(np.min(Z, axis=0)))
+    print('x,y,z', np.unravel_index(np.argmin(Z), Z.shape), np.min(Z))
+    x_min, y_min = np.unravel_index(np.argmin(Z), Z.shape)
+    log.critical(f'Min distance {dist_min} on rotate -{np.rad2deg(x[x_min]):.6f}\u00b0 and offset {y[y_min]}')
+    fig = go.Figure(data=[go.Surface(x=x, y=y, z=Z, colorscale='Portland')])
+    # fig.update_traces(
+    #     contours_z=dict(show=True, usecolormap=True, highlightcolor='limegreen',
+    #                     project_z=True))
+    # fig.update_traces(
+    #     contours_x=dict(show=True, usecolormap=True, highlightcolor='limegreen',
+    #                     project_x=True))
+    # fig.update_traces(
+    #     contours_y=dict(show=True, usecolormap=True, highlightcolor='limegreen',
+    #                     project_y=True))
+    fig.update_layout(
+        xaxis=dict(title_text='Angle'),
+        yaxis=dict(title_text='Offset'),
+        title_text=f'Min: x={np.rad2deg(x[x_min])}, y={y[y_min]}, dist={dist_min}',
+        font_size=13,
+        title_x=0.5,
+    )
+    fig.show()
+    # exit(-1)
+    return
 
+
+def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
     phi, dist, brute_result = use_brute(A_dots, B_dots)
     B_dots_rotated = rotate_dots(B_dots, phi)
     # log.info(f'Brute result: {phi}, {dist}')
@@ -311,6 +391,69 @@ def main():
     plot(brute_result, A_dots, B_dots, B_dots_rotated, phi, n_dots)
     log.info(f'Rotate before vs after: '
              f'{np.sum(B_efd - rotate_efd(B_efd, -deg))}')
+    return
+
+def find_best(A_dots, B_dots, B_efd, deg, offset):
+    for m in ('Powell', 'Nelder-Mead', 'TNC', 'L-BFGS-B'):
+        start2 = timer()
+        try:
+            result2 = calibrate2(A_dots, B_dots, method=m)
+            phi, shift = result2.x.tolist()
+            dist = result2.fun
+            end2 = timer()
+            log.warning(f'{m} method on angle cost {end2-start2:.6f} seconds')
+            # log.info(result2.message)
+            # log.info(result2)
+            log.info(f'\t{result2.nit} iterations')
+            log.info(f'\tRotate B -{np.rad2deg(phi):.6f}\u00b0')
+            log.info(f'\tOffset B {shift} dots')
+            log.info(f'\tMinimize distance {dist:.6f}')
+        except Exception as e:
+            # raise
+            log.error(f'{m} failed')
+            log.error(e)
+            raise
+            continue
+        # log.info(result2)
+    log.info(f'Before vs after: '
+             f'{np.sum(B_efd - np.roll(rotate_efd(B_efd, -deg), -offset, axis=1))}')
+    return
+
+
+def main():
+    input_file = Path(argv[1]).resolve()
+    log.info(f'Input {input_file}')
+    names, data = read_csv(input_file)
+    if len(names) == 0:
+        log.error('Empty input')
+        raise SystemExit(-1)
+
+    n_dots = 360
+    A_efd = data[0].reshape(-1, 4).astype(np.float64)
+    B_efd = data[1].reshape(-1, 4).astype(np.float64)
+    # B_efd = A_efd.copy()
+
+    offset = 0
+    deg = 0
+    rad = np.deg2rad(deg)
+    log.info(f'Rotate {np.rad2deg(rad):.6f}\u00b0')
+    B_efd = rotate_efd(B_efd, rad)
+
+    A_a, A_b, A_c, A_d = np.hsplit(A_efd, 4)
+    A_dots = get_curve_from_efd(A_a, A_b, A_c, A_d, A_a.shape[0], n_dots)
+    B_a, B_b, B_c, B_d = np.hsplit(B_efd, 4)
+    B_dots = get_curve_from_efd(B_a, B_b, B_c, B_d, B_a.shape[0], n_dots)
+
+    B_dots = np.roll(B_dots, offset, axis=1)
+    log.info(f'Offset {offset} dots')
+
+    # plot_3d(A_dots, B_dots)
+    plot_3d_v2(A_dots, B_dots)
+    # min_dist_on_angle(np.array([rad]), A_dots, B_dots)
+    # min_dist_on_offset(A_dots, B_dots)
+
+    # only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg)
+    find_best(A_dots, B_dots, B_efd, deg, offset)
     return
 
 
