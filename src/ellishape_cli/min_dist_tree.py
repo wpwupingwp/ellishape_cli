@@ -58,8 +58,7 @@ def min_dist_on_angle(phi, A_dots, B_dots):
 
 
 def min_dist_on_offset(A_dots, B_dots):
-    # only consider offset
-    a = timer()
+    # a = timer()
     A_ = A_dots.ravel()
     B_ = B_dots.ravel()
     # n_dots
@@ -68,40 +67,42 @@ def min_dist_on_offset(A_dots, B_dots):
     m = n * 2
     # todo: should be 1
     factor = np.sqrt(1 / n)
-    B_roll_matrix = np.empty((n, m))
-    for i in range(0, n):
-        B_roll_matrix[i] = np.roll(B_, -i * 2)
-    # print(B_roll_matrix2.shape, B_roll_matrix.shape)
-    dist = np.linalg.norm(A_ - B_roll_matrix, axis=1) * factor
-    offset = np.argmin(dist)
-    b = timer()
+    # method 1, iter matrix
+    # B_roll_matrix = np.empty((n, m))
+    # for i in range(0, n):
+    #     B_roll_matrix[i] = np.roll(B_, -i * 2)
+    # dist = np.linalg.norm(A_ - B_roll_matrix, axis=1) * factor
+    # offset = np.argmin(dist)
+    # b = timer()
+    # method 2, row indice
     row_indice = (np.arange(m) + np.arange(m)[::2, None]) % m
     B_roll_matrix2 = B_[row_indice].transpose(0, 1)
     dist2 = np.linalg.norm(A_ - B_roll_matrix2, axis=1) * factor
     offset2 = np.argmin(dist2)
-    c = timer()
+    # c = timer()
     # print(np.sum(B_roll_matrix2-B_roll_matrix))
-    Ak1 = np.fft.fft(A_dots[:, 0])
-    Ak2 = np.fft.fft(A_dots[:, 1])
-    Bk1 = np.fft.fft(B_dots[:, 0])
-    Bk2 = np.fft.fft(B_dots[:, 1])
-    Cxx = np.fft.ifft(Ak1 * np.conj(Bk1)).real
-    Cyy = np.fft.ifft(Ak2 * np.conj(Bk2)).real
-    delta = -2 * Cxx - 2 * Cyy + np.sum(
-        np.power(A_dots.ravel(), 2) + np.power(B_dots.ravel(), 2)
-    )
-    delta = np.sqrt(delta / n)
-    offset3 = np.argmin(delta)
-    dist3 = delta[offset3]
-    # fft direction
-    offset3 = n - offset3
-    d = timer()
+    # method 3, fft
+    # Ak1 = np.fft.fft(A_dots[:, 0])
+    # Ak2 = np.fft.fft(A_dots[:, 1])
+    # Bk1 = np.fft.fft(B_dots[:, 0])
+    # Bk2 = np.fft.fft(B_dots[:, 1])
+    # Cxx = np.fft.ifft(Ak1 * np.conj(Bk1)).real
+    # Cyy = np.fft.ifft(Ak2 * np.conj(Bk2)).real
+    # delta = -2 * Cxx - 2 * Cyy + np.sum(
+    #     np.power(A_dots.ravel(), 2) + np.power(B_dots.ravel(), 2)
+    # )
+    # delta = np.sqrt(delta / n)
+    # offset3 = np.argmin(delta)
+    # dist3 = delta[offset3]
+    # # fft direction
+    # offset3 = n - offset3
+    # d = timer()
     # log.info(f'Iter roll on offset cost {b - a:.6f} seconds')
     # log.info(f'Roll matrix on offset cost {c - b:.6f} seconds')
     # log.info(f'FFT on offset cost {d - c:.6f} seconds')
     # three method time cost: 6:2:1
     # print('offset,dist', offset, dist[offset], offset2, dist2[offset2], offset3, delta[offset3], flush=True)
-    return offset, dist[offset]
+    return offset2, dist2[offset2]
 
 
 def min_dist(x0, A_dots, B_dots):
