@@ -46,18 +46,24 @@ def min_dist_on_angle(phi, A_dots, B_dots):
     m, n = B_dots.shape
     factor = np.sqrt(1 / (m))
     diff = np.linalg.norm(A_dots.ravel() - B_dots_rotated.ravel()) * factor
-    # diff = np.linalg.norm(np.roll(A_dots.ravel(), 64)-B_dots_rotated.ravel()) * factor
-    # A2 = A_dots.ravel()
-    # B2 = B_dots_rotated.ravel()
-    # for i in range(m):
-    #     new = np.roll(B2, i)
-    #     print(B2.shape, new.shape)
-    #     diff2 = np.linalg.norm(A2-new) * factor
-    #     print(diff, diff2)
     return diff
 
 
-def min_dist_on_offset(A_dots, B_dots):
+def min_dist_on_offset(offset, A_dots, B_dots):
+    # a = timer()
+    A_ = A_dots.ravel()
+    # n_dots
+    n = A_dots.shape[0]
+    # (x, y)
+    m = n * 2
+    # todo: should be 1
+    factor = np.sqrt(1 / n)
+    B_rolled = np.roll(B_dots, -offset, axis=0)
+    dist = np.linalg.norm(A_ - B_rolled.ravel()) * factor
+    return dist
+
+
+def min_dist_on_offset_for_plot(A_dots, B_dots):
     # a = timer()
     A_ = A_dots.ravel()
     B_ = B_dots.ravel()
@@ -218,14 +224,14 @@ def rotate_dots_all(dots: np.ndarray, angle: np.ndarray):
     return new_dots
 
 
-def calibrate(A_dots, B_dots, method='Powell'):
+def calibrate(A_dots, B_dots, func, method='Powell'):
     x0 = np.array([0])
     if method == 'Bounded':
-        result = minimize_scalar(min_dist_on_angle, args=(A_dots, B_dots),
+        result = minimize_scalar(func, args=(A_dots, B_dots),
                                  method='Bounded',
                                  bounds=(0, np.pi * 2))
     else:
-        result = minimize(min_dist_on_angle, x0, args=(A_dots, B_dots),
+        result = minimize(func, x0, args=(A_dots, B_dots),
                           method=method,
                           bounds=[(0, np.pi * 2)])
     return result
@@ -240,25 +246,39 @@ def calibrate2(A_dots, B_dots, method='Powell'):
     return result2
 
 
-def use_brute(A_dots, B_dots):
+def use_brute_angle(A_dots, B_dots):
     start = timer()
-    # brute_result = brute(min_shape_distance_old, args=(A_dots, B_efd, n_dots), Ns=360,
-    brute_result = brute(min_dist_on_angle, args=(A_dots, B_dots), Ns=360,
+    brute_result = brute(min_dist_on_angle, args=(A_dots, B_dots),
+                         Ns=A_dots.shape[0],
                          ranges=[(0, np.pi * 2)], workers=cpu_count(),
                          full_output=True)
     end = timer()
     x_result, y_result, x_list, y_list = brute_result
-    log.debug(x_result)
-    log.debug(y_result)
     phi = x_result[0].item()
     dist = y_result
-    log.warning(f'Brute,angle,{get_time_ms(end, start)} ms,'
+    log.warning(f'Brute,offset,{get_time_ms(end, start)} ms,'
                 f'rotate {np.rad2deg(phi):.6f}\u00b0, '
                 f'min distance {dist:.6f}')
     return phi, dist, brute_result
 
 
-def use_brute2(A_dots, B_dots):
+def use_brute_offset(A_dots, B_dots):
+    start = timer()
+    n_dots = A_dots.shape[0]
+    brute_result = brute(min_dist_on_offset, args=(A_dots, B_dots), Ns=n_dots,
+                         ranges=[(0, n_dots)], workers=cpu_count(),
+                         full_output=True)
+    end = timer()
+    x_result, y_result, x_list, y_list = brute_result
+    offset = x_result[0].item()
+    dist = y_result
+    log.warning(f'Brute,offset,{get_time_ms(end, start)} ms,'
+                f'offset {offset} dots,'
+                f'min distance {dist:.6f}')
+    return offset, dist, brute_result
+
+
+def use_brute_all(A_dots, B_dots):
     start = timer()
     # brute_result = brute(min_shape_distance_old, args=(A_dots, B_efd, n_dots), Ns=360,
     n_dots = A_dots.shape[0]
@@ -317,10 +337,8 @@ def plot(brute_result, A_dots, B_dots, B_dots2, phi, n_dots):
     y4 = [factor * np.linalg.norm(
         A_dots.ravel() - np.roll(B_dots2.ravel(), -i * 2)) for i in
           range(n_dots)]
-    x3_min, y3_min = min_dist_on_offset(A_dots, B_dots)
-    x4_min, y4_min = min_dist_on_offset(A_dots, B_dots2)
-    # axs[1, 0].plot(x3, y3, 'ro', linewidth=1)
-    # axs[1, 1].plot(x3, y4, 'go', linewidth=1)
+    x3_min, y3_min = min_dist_on_offset_for_plot(A_dots, B_dots)
+    x4_min, y4_min = min_dist_on_offset_for_plot(A_dots, B_dots2)
     axs[1, 0].plot(x_, y3)
     axs[1, 0].plot(x3_min, y3_min, 'ro', label=f'{x3_min}, {y3_min}')
     axs[1, 1].plot(x_, y4)
@@ -413,14 +431,14 @@ def plot_3d_v2(A_dots, B_dots):
 
 
 def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
-    phi, dist, brute_result = use_brute(A_dots, B_dots)
+    phi, dist, brute_result = use_brute_angle(A_dots, B_dots)
     B_dots_rotated = rotate_dots(B_dots, phi)
     # log.info(f'Brute result: {phi}, {dist}')
     for name in ('Bounded', 'Powell'):
         # for m in ('Powell',):
         a = timer()
         try:
-            result2 = calibrate(A_dots, B_dots, method=name)
+            result2 = calibrate(A_dots, B_dots, min_dist_on_angle,method=name)
             # phi = result2.x.item()
             result2.x = np.append(result2.x, 0)
             # dist = result2.fun
@@ -444,6 +462,27 @@ def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
     return
 
 
+def only_find_best_offset(A_dots, B_dots):
+    offset, dist, brute_result = use_brute_offset(A_dots, B_dots)
+    for name in ('Bounded', 'Powell'):
+        a = timer()
+        try:
+            result2 = calibrate(A_dots, B_dots, min_dist_on_offset,method=name)
+            result2.x = np.array([0, result2.x.item()])
+            b = timer()
+            p_res(result2, name, b, a, 'offset')
+        except Exception as e:
+            # raise
+            log.error(f'{name} failed')
+            log.error(e)
+            continue
+    B_dots_offset = np.roll(B_dots, -offset, axis=1)
+    # plot(brute_result, A_dots, B_dots, B_dots_rotated, offset, n_dots)
+    log.info(f'Offset before minus after: '
+             f'{np.sum(B_dots - B_dots_offset)}')
+    return
+
+
 def p_res(res, name, end, start, target):
     phi, shift = res.x.tolist()
     dist = res.fun
@@ -451,6 +490,7 @@ def p_res(res, name, end, start, target):
     message = (f'{name},{target},{ms} ms,'
                f'{res.nit} iters,'
                f'rotate {np.rad2deg(np.pi * 2 - phi):.6f}\u00b0,'
+               f'offset {shift:.6f} dots,'
                f'min distance {dist:.6f},'
                f'{res.success}')
     if target == 'both':
@@ -460,7 +500,7 @@ def p_res(res, name, end, start, target):
 
 
 def find_best(A_dots, B_dots, B_efd, deg, offset):
-    use_brute2(A_dots, B_dots)
+    use_brute_all(A_dots, B_dots)
     bounds = [(0, np.pi * 2), (0, A_dots.shape[0])]
     a = timer()
     res = optimize.dual_annealing(min_dist, bounds, args=(A_dots, B_dots))
@@ -545,7 +585,7 @@ def main():
     # min_dist_on_offset(A_dots, B_dots)
     find_best(A_dots, B_dots, B_efd, deg, offset)
     only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg)
-    # only_find_best_offset(A_dots, B_dots, B_efd, n_dots, offset)
+    only_find_best_offset(A_dots, B_dots)
     return
 
 
