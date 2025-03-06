@@ -129,7 +129,6 @@ def min_shape_distance2(phi, A_dots, B_dots):
     for i in np.arange(128):
         B_dots_rotated_rolled = np.roll(B_dots_rotated, -i, axis=0)
         data = np.vstack([A_dots.ravel(), B_dots_rotated_rolled.ravel()])
-        exit - 1
     diff = get_distance_matrix2(data)
     x = np.min(squareform(diff))
     # diff = get_distance_matrix2(data)[0][1]
@@ -364,15 +363,15 @@ def plot_3d(A_dots, B_dots):
     y = np.arange(0, m_dots)
     # y = np.arange(m_dots, 0, -1)
     X, Y = np.meshgrid(x, y)
-    Z = np.zeros((m_dots, m_dots))
+    Z = np.empty((m_dots, m_dots))
     for i, ix in enumerate(x):
         for j, jy in enumerate(y):
             # _ = np.roll(B_dots_rotated, -1*jy)
             _ = np.roll(B_dots, -1 * jy)
             _2 = rotate_dots(_, ix)
             Z[i][j] = np.linalg.norm(A_dots.ravel() - _2.ravel())
-    print(np.argmin(np.argmin(Z, axis=0)), np.min(np.min(Z, axis=0)), flush=True)
-    print(np.argmin(np.argmin(Z, axis=1)), np.min(np.min(Z, axis=1)), flush=True)
+    # print(np.argmin(np.argmin(Z, axis=0)), np.min(np.min(Z, axis=0)), flush=True)
+    # print(np.argmin(np.argmin(Z, axis=1)), np.min(np.min(Z, axis=1)), flush=True)
     print(np.unravel_index(np.argmin(Z), Z.shape), np.min(Z), flush=True)
     # surf = ax.plot_surface(X, Y, Z, cmap='bwr')
     surf = ax.plot_surface(X, Y, Z, cmap=cmap, vmin=Z.min() + 0.01)
@@ -404,15 +403,20 @@ def plot_3d_v2(A_dots, B_dots):
             Z[i][j] = np.linalg.norm(A_dots.ravel() - _2.ravel()) * np.sqrt(
                 1 / A_dots.shape[0])
     dist_min = np.min(Z)
+    dist_max = np.max(Z)
     end = timer()
     log.warning(f'Found {len(Z[Z == dist_min])} best dots')
     # todo: better visualize
-    Z[Z > (dist_min * 1.1)] = np.max(Z)
+    # Z[Z > (dist_min * 1.5)] = np.max(Z)
+    # log.warning('Z[Z > (dist_min * 1.5)] = np.max(Z)')
 
     # print(np.argmin(np.argmin(Z, axis=1)), np.min(np.min(Z, axis=1)))
     # print(np.argmin(np.argmin(Z, axis=0)), np.min(np.min(Z, axis=0)))
     # print('x,y,z', np.unravel_index(np.argmin(Z), Z.shape), np.min(Z))
     x_min, y_min = np.unravel_index(np.argmin(Z), Z.shape)
+    x_max, y_max = np.unravel_index(np.argmax(Z), Z.shape)
+    title_text = f'Min: x={np.rad2deg(x[x_min]):.6f}\u00b0, y={y[y_min]}, dist={dist_min:.6f};'
+    title_text += f'Max: x={np.rad2deg(x[x_max]):.6f}\u00b0, y={y[y_max]}, dist={dist_max:.6f}'
     log.critical(f'Baseline: {get_time_ms(end, start)} ms, {m_dots**2} iters,'
                  f'rotate {np.rad2deg(x[x_min]):.6f}\u00b0, '
                  f'offset {y[y_min]},'
@@ -421,7 +425,7 @@ def plot_3d_v2(A_dots, B_dots):
     fig.update_layout(
         xaxis=dict(title_text='Angle'),
         yaxis=dict(title_text='Offset'),
-        title_text=f'Min: x={np.rad2deg(x[x_min])}, y={y[y_min]}, dist={dist_min}',
+        title_text=title_text,
         font_size=13,
         title_x=0.5,
     )
@@ -516,7 +520,7 @@ def find_best(A_dots, B_dots, B_efd, deg, offset):
     p_res(res, name, b, a, 'both')
 
     a = timer()
-    res = optimize.shgo(min_dist, bounds, args=(A_dots, B_dots), iters=2)
+    res = optimize.shgo(min_dist, bounds, args=(A_dots, B_dots), iters=4)
     b = timer()
     name = 'Shgo'
     p_res(res, name, b, a, 'both')
@@ -559,10 +563,11 @@ def main():
 
     n_dots = 128
     offset = 0
-    deg = 45
+    # when deg=180, Q.imbricaria vs leaf brute force result is worse than optimize
+    deg = 0
 
-    A_efd = data[0].reshape(-1, 4).astype(np.float64)
-    B_efd = data[1].reshape(-1, 4).astype(np.float64)
+    A_efd = data[1].reshape(-1, 4).astype(np.float64)
+    B_efd = data[11].reshape(-1, 4).astype(np.float64)
     # B_efd = A_efd.copy()
 
     rad = np.deg2rad(deg)
