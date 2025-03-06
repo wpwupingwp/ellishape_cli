@@ -45,7 +45,8 @@ def min_dist_on_angle(phi, A_dots, B_dots):
     # n_dots * n_samples
     m, n = B_dots.shape
     factor = np.sqrt(1 / (m))
-    diff = np.linalg.norm(A_dots.ravel() - B_dots_rotated.ravel()) * factor
+    # diff = np.linalg.norm(A_dots.ravel() - B_dots_rotated.ravel()) * factor
+    diff = np.linalg.norm(A_dots - B_dots_rotated) * factor
     return diff
 
 
@@ -119,7 +120,8 @@ def min_dist(x0, A_dots, B_dots):
     factor = np.sqrt(1 / (m))
     B_dots_rotated_offset = np.roll(B_dots_rotated, -offset, axis=0)
     diff = np.linalg.norm(
-        A_dots.ravel() - B_dots_rotated_offset.ravel()) * factor
+        # A_dots.ravel() - B_dots_rotated_offset.ravel()) * factor
+        A_dots-B_dots_rotated_offset) *factor
     return diff
 
 
@@ -208,6 +210,7 @@ def rotate_dots(dots: np.ndarray, angle: float):
 
 def rotate_dots_all(dots: np.ndarray, angle: np.ndarray):
     """
+    0.4s for rotate 360 times, too slow
     rotate clockwise
     Args:
         dots: n*2 matrix
@@ -215,11 +218,36 @@ def rotate_dots_all(dots: np.ndarray, angle: np.ndarray):
     Returns:
         new_dots: n*2*m matrix
     """
-    angle *= -1
+    angle = np.asarray(angle)
+    original_shape = angle.shape
+    angle = angle.reshape(-1)
+    m = len(angle)
+    angle = -angle
+    cos = np.cos(angle)
+    sin = np.sin(angle)
+    rotate_matrix = np.empty((m, 2, 2))
+    rotate_matrix[:, 0, 0] = cos
+    rotate_matrix[:, 0, 1] = -sin
+    rotate_matrix[:, 1, 0] = sin
+    rotate_matrix[:, 1, 1] = cos
+
+    # Reshape dots to (n, 2)
     dots_matrix = dots.reshape(-1, 2)
-    rotate_matrix = np.array([[np.cos(angle), -1 * np.sin(angle)],
-                              [np.sin(angle), np.cos(angle)]])
-    new_dots = np.dot(dots_matrix, rotate_matrix).reshape(-1, 2)
+    n = dots_matrix.shape[0]
+
+    # Expand dots to (1, n, 2) for broadcasting and perform batch multiplication
+    dots_expanded = dots_matrix[np.newaxis, :, :]
+    new_dots = np.matmul(dots_expanded, rotate_matrix)  # Shape (m, n, 2)
+
+    # Reshape the result based on original angle's shape
+    if original_shape == ():
+        # Squeeze the first dimension if angle was a scalar
+        new_dots = new_dots.reshape(-1, 2)
+    else:
+        # Ensure the output shape is (m, n, 2)
+        new_dots = new_dots.reshape((-1, n, 2))
+
+    print(new_dots.shape)
     return new_dots
 
 
