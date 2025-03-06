@@ -201,9 +201,10 @@ def rotate_dots(dots: np.ndarray, angle: float):
         new_dots: n*2 matrix
     """
     angle *= -1
-    dots_matrix = dots.reshape(-1, 2)
-    rotate_matrix = np.array([[np.cos(angle), -1 * np.sin(angle)],
-                              [np.sin(angle), np.cos(angle)]])
+    # dots_matrix = dots.reshape(-1, 2)
+    dots_matrix = dots
+    cos_, sin_ = np.cos(angle), np.sin(angle)
+    rotate_matrix = np.array([[cos_, -sin_], [sin_, cos_]])
     new_dots = np.dot(dots_matrix, rotate_matrix).reshape(-1, 2)
     return new_dots
 
@@ -488,7 +489,7 @@ def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
             log.error(e)
             continue
         # log.info(result2)
-    plot(brute_result, A_dots, B_dots, B_dots_rotated, phi, n_dots)
+    # plot(brute_result, A_dots, B_dots, B_dots_rotated, phi, n_dots)
     log.info(f'Rotate before minus after: '
              f'{np.sum(B_efd - rotate_efd(B_efd, -deg))}')
     return
@@ -581,6 +582,57 @@ def find_best(A_dots, B_dots, B_efd, deg, offset):
     return
 
 
+def find_best_peng(A_dots, B_dots):
+    a = timer()
+    m = A_dots.shape[0]
+    dist = np.sqrt(np.sum((A_dots - B_dots) ** 2) / m)
+    output = B_dots.copy()
+
+    Xk1 = np.fft.fft(A_dots[:, 0])
+    Yk1 = np.fft.fft(A_dots[:, 1])
+
+    delta1 = np.sum(A_dots[:, 0] ** 2)
+    delta2 = np.sum(A_dots[:, 1] ** 2)
+
+    phi, offset = 0, 0
+
+    for theta in range(360):
+        rad = np.deg2rad(theta)
+        cos_t = np.cos(rad)
+        sin_t = np.sin(rad)
+        rot_mat = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
+
+        B_dots_rotated = np.dot(B_dots, rot_mat.T)
+
+        sum_x3 = np.sum(B_dots_rotated[:, 0] ** 2)
+        sum_y3 = np.sum(B_dots_rotated[:, 1] ** 2)
+
+        Xk3 = np.fft.fft(B_dots_rotated[:, 0])
+        Yk3 = np.fft.fft(B_dots_rotated[:, 1])
+
+        Cxx = np.fft.ifft(Xk1 * np.conj(Xk3)).real
+        Cyy = np.fft.ifft(Yk1 * np.conj(Yk3)).real
+
+        delta = delta1 + sum_x3 + delta2 + sum_y3 - 2 * (Cxx + Cyy)
+        delta = np.sqrt(np.abs(delta) / m)
+
+        min_idx = np.argmin(delta)
+        min_val = delta[min_idx]
+
+        if min_val < dist:
+            dist = min_val
+            output = np.roll(B_dots_rotated, min_idx, axis=0)
+            phi = theta
+            offset = min_idx
+    b = timer()
+    ms = get_time_ms(b, a)
+    log.critical(f'Peng-matlab,both, {ms} ms,rotate,'
+                 f'rotate {np.deg2rad(phi):.6f}\u00b0'
+                 f'offset {offset} dots,'
+                 f'min dist {dist:.6f}')
+    return output, dist
+
+
 def main():
     input_file = Path(argv[1]).resolve()
     log.info(f'Input {input_file}')
@@ -594,8 +646,9 @@ def main():
     # when deg=180, Q.imbricaria vs leaf brute force result is worse than optimize
     deg = 0
 
-    A_efd = data[1].reshape(-1, 4).astype(np.float64)
-    B_efd = data[11].reshape(-1, 4).astype(np.float64)
+    # when 11/12, shgo is best, but shgo is not stable
+    A_efd = data[11].reshape(-1, 4).astype(np.float64)
+    B_efd = data[12].reshape(-1, 4).astype(np.float64)
     # B_efd = A_efd.copy()
 
     rad = np.deg2rad(deg)
@@ -617,8 +670,11 @@ def main():
     plot_3d_v2(A_dots, B_dots)
     # min_dist_on_offset(A_dots, B_dots)
     find_best(A_dots, B_dots, B_efd, deg, offset)
+    # on matlab, efd 38ms for 2 samples, calibrate 18ms for 1 pair
+    find_best_peng(A_dots, B_dots)
     only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg)
     only_find_best_offset(A_dots, B_dots)
+    # plot(brute_result, A_dots, B_dots, B_dots_rotated, phi, n_dots)
     return
 
 
