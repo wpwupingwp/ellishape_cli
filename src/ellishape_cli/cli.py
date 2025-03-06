@@ -291,25 +291,6 @@ def gui_chain_code_func(axis_info, origin_ori):
     return chain_code, origin
 
 
-def calc_traversal_dist(ai):
-    x_ = 0
-    y_ = 0
-    if np.isscalar(ai):
-        p = np.zeros((1, 2))
-        x_ += np.sign(6 - ai) * np.sign(2 - ai)
-        y_ += np.sign(4 - ai) * np.sign(ai)
-        p[0, 0] = x_
-        p[0, 1] = y_
-    else:
-        p = np.zeros((ai.shape[0], 2))
-        for i in range(ai.shape[0]):
-            x_ += np.sign(6 - ai[i]) * np.sign(2 - ai[i])
-            y_ += np.sign(4 - ai[i]) * np.sign(ai[i])
-            p[i, 0] = x_
-            p[i, 1] = y_
-    return p
-
-
 def is_completed_chain_code(chain_code, start_point):
     # todo: why 2
     close_threshold = 2
@@ -363,8 +344,6 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
             a[0] * b[0] + c[0] * d[0]) * sin_2theta + (
                           b[0] ** 2 + d[0] ** 2) * cos_theta_square
 
-    # print(axis_theta1)
-    # print(axis_theta2)
     if axis_theta1 < axis_theta2:
         theta1 += np.pi / 2
 
@@ -381,9 +360,7 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
     if c_star_1 < 0 < a_star_1:
         psi1 = np.pi * 2 - psi1
 
-
     E = np.sqrt(a_star_1 ** 2 + c_star_1 ** 2)
-    # print(E)
 
     if sc:
         log.debug('sc')
@@ -422,11 +399,6 @@ def normalize(efd, ro=True, sc=True, re=True, y_sy=True, x_sy=True, sta=True,
         b = normalized_all_1[:, 1]
         c = normalized_all_1[:, 2]
         d = normalized_all_1[:, 3]
-
-        # todo: new?
-        # if a[0] < 0:
-        #     a = -a
-        #     d = -d
 
     if y_sy:
         if n > 1:
@@ -473,7 +445,93 @@ def get_curve_old(a, b, c, d, A0, C0, Tk, T, n, m):
     return output
 
 
+def get_chain_code(gray, max_contour) -> (np.ndarray|None):
+    img_result = np.zeros_like(gray)
+    cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
+    # cv2.imshow('a', img_result)
+    # cv2.waitKey()
+    # cv2.imshow('gray', gray)
+    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
+    # log.debug(f'{max_contour=}')
+    boundary = max_contour
+    log.debug(f'{max_contour[0].shape}')
+    # chaincode, origin = gui_chain_code_func(gray, max_contour[0])
+    chaincode, origin = gui_chain_code_func(img_result, max_contour[0])
+    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
+    log.debug(f'{chaincode.shape=}')
+    log.debug(f'Chaincode shape: {chaincode.shape}')
+    if len(chaincode) == 0:
+        log.error('Cannot generate chain code from the image')
+        return None
+
+    log.debug(f'{boundary[0]=}')
+    is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
+
+    if not is_closed:
+        log.error('Chain code is not closed')
+        log.error(f'Chain code length: {chaincode.shape[0]}')
+        return None
+    else:
+        log.debug('Chain code is closed')
+        log.debug(f'{chaincode=}')
+        log.debug(f'{chaincode.shape=}')
+    return chaincode
+
+
+def calc_traversal_dist(ai):
+    x_ = 0
+    y_ = 0
+    m = len(ai)
+    p = np.zeros((m, 2))  # Initialize position array
+    dp = np.zeros((m, 2))  # Initialize displacement array
+
+    for i in range(m):
+        dx_ = np.sign(6 - ai[i]) * np.sign(2 - ai[i])
+        dy_ = np.sign(4 - ai[i]) * np.sign(ai[i])
+        x_ += dx_
+        y_ += dy_
+        p[i, 0] = x_
+        p[i, 1] = y_
+        dp[i, 0] = dx_
+        dp[i, 1] = dy_
+
+    return p, dp
+
+
+def calc_traversal_dist_old(ai):
+    x_ = 0
+    y_ = 0
+    if np.isscalar(ai):
+        p = np.zeros((1, 2))
+        x_ += np.sign(6 - ai) * np.sign(2 - ai)
+        y_ += np.sign(4 - ai) * np.sign(ai)
+        p[0, 0] = x_
+        p[0, 1] = y_
+    else:
+        p = np.zeros((ai.shape[0], 2))
+        for i in range(ai.shape[0]):
+            x_ += np.sign(6 - ai[i]) * np.sign(2 - ai[i])
+            y_ += np.sign(4 - ai[i]) * np.sign(ai[i])
+            p[i, 0] = x_
+            p[i, 1] = y_
+    return p
+
+
 def calc_traversal_time(ai):
+    t_ = 0
+    m = len(ai)
+    t = np.zeros(m)
+    dt = np.zeros(m)
+
+    for i in range(m):
+        dt_ = 1 + ((np.sqrt(2) - 1) / 2) * (1 - (-1) ** ai[i])
+        t_ += dt_
+        t[i] = t_
+        dt[i] = dt_
+    return t, dt
+
+
+def calc_traversal_time_old(ai):
     t_ = 0
     if np.isscalar(ai):
         t = np.zeros(1)
@@ -487,9 +545,9 @@ def calc_traversal_time(ai):
     return t
 
 
-def calc_harmonic_coefficients_modify(ai, n, mode):
+def calc_harmonic_coefficients_modify_old(ai, n, mode):
     k = ai.shape[0]
-    d = calc_traversal_dist(ai)
+    d = calc_traversal_dist_old(ai)
     if mode == 0:
         edist = d[k - 1, 0] ** 2 + d[k - 1, 1] ** 2
         if edist > 2:
@@ -516,8 +574,8 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
             ai = np.append(ai, exp)
 
     k = ai.shape[0]
-    t = calc_traversal_time(ai)
-    d = calc_traversal_dist(ai)
+    t = calc_traversal_time_old(ai)
+    d = calc_traversal_dist_old(ai)
     T = t[k - 1]
     two_n_pi = 2 * n * np.pi
 
@@ -579,11 +637,98 @@ def calc_harmonic_coefficients_modify(ai, n, mode):
     return a, b, c, d
 
 
+def calc_harmonic_coefficients_modify(ai, n, mode):
+    """
+    This function calculates the n-th set of four harmonic coefficients.
+    The output is [an, bn, cn, dn].
+    """
+    if mode == 0:
+        k = len(ai)
+        d = calc_traversal_dist_old(ai)
+        edist = d[-1, 0] ** 2 + d[-1, 1] ** 2
+        if edist > 2:
+            print("Error: Chain code is not closed.")
+            return None
+        elif edist > 0:
+            vect = [-d[-1, 0], -d[-1, 1]]
+            if vect[0] == 1 and vect[1] == 0:
+                ai = np.append(ai, 0)
+            elif vect[0] == 1 and vect[1] == 1:
+                ai = np.append(ai, 1)
+            elif vect[0] == 0 and vect[1] == 1:
+                ai = np.append(ai, 2)
+            elif vect[0] == -1 and vect[1] == 1:
+                ai = np.append(ai, 3)
+            elif vect[0] == -1 and vect[1] == 0:
+                ai = np.append(ai, 4)
+            elif vect[0] == -1 and vect[1] == -1:
+                ai = np.append(ai, 5)
+            elif vect[0] == 0 and vect[1] == -1:
+                ai = np.append(ai, 6)
+            elif vect[0] == 1 and vect[1] == -1:
+                ai = np.append(ai, 7)
+
+    # Maximum length of chain code
+    k = len(ai)
+
+    # Traversal time
+    t, dt = calc_traversal_time(ai)
+
+    # Traversal distance
+    _, dd = calc_traversal_dist(ai)
+
+    # Basic period of the chain code
+    T = t[-1]
+
+    # Store this value to make computation faster
+    two_n_pi = 2 * n * np.pi
+
+    # Compute harmonic coefficients: an, bn, cn, dn
+    delta_x = dd[0, 0]
+    delta_y = dd[0, 1]
+    delta_t = dt[0]
+    q_x = delta_x / delta_t
+    q_y = delta_y / delta_t
+    cosp = np.cos(two_n_pi * t[0] / T)
+    sinp = np.sin(two_n_pi * t[0] / T)
+    sigma_a = q_x * (cosp - 1)
+    sigma_b = q_x * sinp
+    sigma_c = q_y * (cosp - 1)
+    sigma_d = q_y * sinp
+
+    for p in range(1, k):
+        delta_x = dd[p, 0]
+        delta_y = dd[p, 1]
+        delta_t = dt[p]
+        q_x = delta_x / delta_t
+        q_y = delta_y / delta_t
+        cost = np.cos(two_n_pi * t[p] / T)
+        sint = np.sin(two_n_pi * t[p] / T)
+
+        sigma_a += q_x * (cost - cosp)
+        sigma_b += q_x * (sint - sinp)
+        sigma_c += q_y * (cost - cosp)
+        sigma_d += q_y * (sint - sinp)
+
+        cosp = cost
+        sinp = sint
+
+    r = T / (2 * n ** 2 * np.pi ** 2)
+
+    a = r * sigma_a
+    b = r * sigma_b
+    c = r * sigma_c
+    d = r * sigma_d
+
+    # Assign to output
+    # output = np.array([a, b, c, d])
+    return a, b, c, d
+
 
 def calc_dc_components_modify(ai, mode):
     k = ai.shape[0]
-    t = calc_traversal_time(ai)
-    d = calc_traversal_dist(ai)
+    t = calc_traversal_time_old(ai)
+    d = calc_traversal_dist_old(ai)
     Tk = t[k-1]
 
     if mode == 0:
@@ -632,8 +777,8 @@ def calc_dc_components_modify(ai, mode):
             exp = (ai + 4) % 8
             ai = np.append(ai, exp)
     k = ai.shape[0]
-    t = calc_traversal_time(ai)
-    d = calc_traversal_dist(ai)
+    t = calc_traversal_time_old(ai)
+    d = calc_traversal_dist_old(ai)
     T = t[k - 1]
 
     sum_a0 = 0
@@ -643,7 +788,7 @@ def calc_dc_components_modify(ai, mode):
             dp_prev = d[p - 1, :]
         else:
             dp_prev = np.zeros(2)
-        delta_t = calc_traversal_time(ai[p])
+        delta_t = calc_traversal_time_old(ai[p])
         sum_a0 += (d[p, 0] + dp_prev[0]) * delta_t / 2
         sum_c0 += (d[p, 1] + dp_prev[1]) * delta_t / 2
 
@@ -651,39 +796,6 @@ def calc_dc_components_modify(ai, mode):
     C0 = sum_c0 / T
 
     return A0, C0, Tk, T
-
-
-def get_chain_code(gray, max_contour) -> (np.ndarray|None):
-    img_result = np.zeros_like(gray)
-    cv2.drawContours(img_result, [max_contour], -1, 255, thickness=1)
-    # cv2.imshow('a', img_result)
-    # cv2.waitKey()
-    # cv2.imshow('gray', gray)
-    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    # log.debug(f'{max_contour=}')
-    boundary = max_contour
-    log.debug(f'{max_contour[0].shape}')
-    # chaincode, origin = gui_chain_code_func(gray, max_contour[0])
-    chaincode, origin = gui_chain_code_func(img_result, max_contour[0])
-    max_contour[:, [0, 1]] = max_contour[:, [1, 0]]
-    log.debug(f'{chaincode.shape=}')
-    log.debug(f'Chaincode shape: {chaincode.shape}')
-    if len(chaincode) == 0:
-        log.error('Cannot generate chain code from the image')
-        return None
-
-    log.debug(f'{boundary[0]=}')
-    is_closed, endpoint = is_completed_chain_code(chaincode, boundary[0])
-
-    if not is_closed:
-        log.error('Chain code is not closed')
-        log.error(f'Chain code length: {chaincode.shape[0]}')
-        return None
-    else:
-        log.debug('Chain code is closed')
-        log.debug(f'{chaincode=}')
-        log.debug(f'{chaincode.shape=}')
-    return chaincode
 
 
 def get_efd_from_chain_code(chain_code, n_order):
