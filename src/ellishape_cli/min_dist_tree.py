@@ -50,6 +50,29 @@ def min_dist_on_angle(phi, A_dots, B_dots):
     return diff
 
 
+global m_pot
+def min_dist_on_angle_2(angle, A_dots, B_dots):
+    fft_a_conj = np.conj(np.fft.fft(A_dots, axis=0))
+    M = A_dots.shape[0]
+
+    cos_t = np.cos(angle)
+    sin_t = np.sin(angle)
+    R = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
+    B_dots_rotated = B_dots @ R.T
+
+    # 计算交叉项互相关（利用FFT加速）
+    fft_b = np.fft.fft(B_dots_rotated, axis=0)
+    cross_corr = np.fft.ifft(np.sum(fft_b * np.conj(fft_a_conj), axis=1)).real
+
+    # 找到最优偏移和最小距离
+    global m_pot
+    m_opt = np.argmax(cross_corr)
+    E = np.sum(B_dots_rotated ** 2)
+    C_max = cross_corr[m_opt]
+    D_min = np.sqrt(2 * (E - C_max) / M)
+    return D_min
+
+
 def min_dist_on_offset(offset, A_dots, B_dots):
     # a = timer()
     A_ = A_dots.ravel()
