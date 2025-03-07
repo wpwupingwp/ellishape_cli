@@ -582,6 +582,55 @@ def find_best(A_dots, B_dots, B_efd, deg, offset):
     return
 
 
+def find_best_deepseek(A_dots, B_dots):
+    a = timer()
+    M = A_dots.shape[0]
+    assert B_dots.shape == (M, 2)
+    theta_samples = 360
+    best_theta = 0.0
+    best_m = 0
+    min_distance = float('inf')
+
+    E_a = np.sum(A_dots ** 2)  # 预计算b的能量
+
+    # 在0到2π范围内均匀采样theta
+    thetas = np.linspace(0, 2 * np.pi, theta_samples, endpoint=False)
+    fft_a_conj = np.conj(np.fft.fft(A_dots, axis=0))
+
+    for theta in thetas:
+        # 旋转点集a
+        cos_t = np.cos(theta)
+        sin_t = np.sin(theta)
+        R = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
+
+        b_rot = B_dots @ R.T
+
+        # 计算a_rot与b的循环互相关（FFT加速）
+        fft_b = np.fft.fft(b_rot, axis=0)
+        cross_corr = np.fft.ifft(np.sum(fft_b * fft_a_conj, axis=1)).real
+
+        # 找到最佳移位和对应的最大互相关值
+        m = np.argmax(cross_corr)
+        # log.error(cross_corr[cross_corr==cross_corr[m]])
+        C_max = cross_corr[m]
+
+        # 计算当前配置下的均方根距离
+        E_b = np.sum(b_rot ** 2)
+        distance = np.sqrt((E_a + E_b - 2 * C_max) / M)
+
+        # 更新最优解
+        if distance < min_distance:
+            min_distance = distance
+            best_theta = theta
+            best_m = m
+
+    b = timer()
+    log.error(f'ai,both,{get_time_ms(b,a)} ms,{np.rad2deg(best_theta):.6f}\u00b0,'
+              f'offset {best_m} dots,'
+              f'dist {min_distance:.6f}')
+    return best_theta, best_m, min_distance
+
+
 def find_best_peng(A_dots, B_dots):
     a = timer()
     m = A_dots.shape[0]
@@ -626,8 +675,8 @@ def find_best_peng(A_dots, B_dots):
             offset = min_idx
     b = timer()
     ms = get_time_ms(b, a)
-    log.critical(f'Peng-matlab,both, {ms} ms,rotate,'
-                 f'rotate {np.deg2rad(phi):.6f}\u00b0'
+    log.critical(f'Peng-matlab,both, {ms} ms,'
+                 f'rotate {phi}\u00b0,'
                  f'offset {offset} dots,'
                  f'min dist {dist:.6f}')
     return output, dist
@@ -647,8 +696,10 @@ def main():
     deg = 0
 
     # when 11/12, shgo is best, but shgo is not stable
+    # when 11/13, powell on angle is best, but shgo is not stable
+    # when 11/10, peng and ai differnt best
     A_efd = data[11].reshape(-1, 4).astype(np.float64)
-    B_efd = data[12].reshape(-1, 4).astype(np.float64)
+    B_efd = data[10].reshape(-1, 4).astype(np.float64)
     # B_efd = A_efd.copy()
 
     rad = np.deg2rad(deg)
@@ -672,6 +723,7 @@ def main():
     find_best(A_dots, B_dots, B_efd, deg, offset)
     # on matlab, efd 38ms for 2 samples, calibrate 18ms for 1 pair
     find_best_peng(A_dots, B_dots)
+    find_best_deepseek(A_dots, B_dots)
     only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg)
     only_find_best_offset(A_dots, B_dots)
     # plot(brute_result, A_dots, B_dots, B_dots_rotated, phi, n_dots)
