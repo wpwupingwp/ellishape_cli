@@ -461,8 +461,11 @@ def get_tree():
     end = timer()
 
     log.info(f'{len(names):<10} samples')
-    log.info(f'{len(data)*(len(data)-1)//2:<10d} pairs')
-    log.info(f'Total time elapsed: {end - start:.3f}')
+    n_pair = (len(data) ** 2 - 1) // 2
+    total_time = end - start
+    log.info(f'{n_pair:<10d} pairs')
+    log.info(f'Total time elapsed: {total_time:.3f}')
+    log.info(f'Average time per pair of samples: {total_time/n_pair:.3f}')
     log.info(f'\t{"Read:":<15} {read_time - start:.3f}')
     log.info(f'\t{"PCA:":<15} {pca_time - read_time:.3f}')
     log.info(f'\t{"Matrix:":<15} {matrix_time - pca_time:.3f}')
