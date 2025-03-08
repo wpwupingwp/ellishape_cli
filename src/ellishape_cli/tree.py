@@ -224,11 +224,9 @@ def get_distance_matrix2(data, no_factor=False):
     return result
 
 
-def get_distance_matrix(names, data, get_s_dist: bool, get_h_dist: bool,
+def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
                         get_min_dist: bool):
     # slow and use large mem
-    (h_dist_matrix, s_dist_matrix, min_dist_matrix,
-     angle_matrix, offset_matrix) = [list() for _ in range(5)]
     name_result = dict()
     # parallel
     futures = []
@@ -247,34 +245,37 @@ def get_distance_matrix(names, data, get_s_dist: bool, get_h_dist: bool,
     for r in futures:
         result = r.result()
         pair_name, h_dist, s_dist, min_dist, angle, offset = result
+        # pair name: 5 values
         name_result[pair_name] = [h_dist, s_dist, min_dist, angle, offset]
 
     # read result
-    for i in range(len(data)):
-        h_dist_list, s_dist_list, min_dist_list, angle_list, offset_list = [
-            list() for i in range(5)]
-        for j in range(i + 1):
-            a_name = names[i]
-            b_name = names[j]
-            pair_name = f'{a_name}-{b_name}'
-            h_dist, s_dist, min_dist, angle, offset = name_result[pair_name]
-            h_dist_list.append(h_dist)
-            s_dist_list.append(s_dist)
-            min_dist_list.append(min_dist)
-            angle_list.append(angle)
-            offset_list.append(offset)
-        h_dist_matrix.append(h_dist_list)
-        s_dist_matrix.append(s_dist_list)
-        min_dist_matrix.append(min_dist_list)
-        angle_matrix.append(angle_list)
-        offset_matrix.append(offset_list)
-    h_dist_matrix_ = tril_to_matrix(h_dist_matrix)
-    s_dist_matrix_ = tril_to_matrix(s_dist_matrix)
-    min_dist_matrix_ = tril_to_matrix(min_dist_matrix)
-    angle_matrix_ = tril_to_matrix(angle_matrix)
-    offset_matrix_ = tril_to_matrix(offset_matrix)
-    return (h_dist_matrix_, s_dist_matrix_, min_dist_matrix_, angle_matrix_,
-            offset_matrix_)
+    n_matrix = 5
+    tril_matrix_list = [list() for _ in range(n_matrix)]
+    matrix_list = [None, ] * n_matrix
+    idx_list = []
+    if get_h_dist:
+        idx_list.append(0)
+    if get_s_dist:
+        idx_list.append(1)
+    if get_min_dist:
+        idx_list.extend([2, 3, 4])
+    for idx in idx_list:
+        tril_matrix = tril_matrix_list[idx]
+        for i in range(len(data)):
+            temp_list = []
+            for j in range(i + 1):
+                a_name = names[i]
+                b_name = names[j]
+                pair_name = f'{a_name}-{b_name}'
+                value = name_result[pair_name][idx]
+                temp_list.append(value)
+            tril_matrix.append(temp_list)
+        matrix = tril_to_matrix(tril_matrix)
+        matrix_list[idx] = matrix
+    (h_dist_matrix, s_dist_matrix, min_dist_matrix,
+     angle_matrix, offset_matrix) = matrix_list
+    return (h_dist_matrix, s_dist_matrix, min_dist_matrix, angle_matrix,
+            offset_matrix)
 
 
 # def build_nj_tree(m_name, names: list, matrix: list, arg):
@@ -430,6 +431,7 @@ def get_tree():
     pca_time = timer()
 
     e_dist_matrix = get_distance_matrix2(data, arg.no_factor)
+
     if arg.s_dist or arg.h_dist or arg.min_dist:
         (h_dist_matrix, s_dist_matrix, min_dist_matrix, angle_matrix,
          offset_matrix) = get_distance_matrix(
