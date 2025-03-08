@@ -63,15 +63,16 @@ def read_csv(input_file: Path, simple_name=True):
             simple_names.append(simple)
     else:
         simple_names = names
+    data = data.astype(np.float64)
     return simple_names, data
 
 
 def read_kind_csv(category_csv: Path, sample_names: list) -> (dict, list):
     name_kind = dict()
-    raw_data = np.loadtxt(category_csv, delimiter=',', dtype=str, quotechar='"')
+    raw_data = np.loadtxt(category_csv, delimiter=',', dtype=str, quotechar='"',
+                          skiprows=1)
     kind_list = raw_data[1:, 1:].flatten().tolist()
     with open(category_csv, 'r', encoding='utf-8') as f:
-        next(f)
         for line in f:
             name, kind = line.rstrip().split(',')
             simple_name = Path(name).stem
@@ -224,14 +225,12 @@ def get_distance_matrix2(data, no_factor=False):
     result = squareform(s_pdist2)
     return result
 
-
 def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
                         get_min_dist: bool):
     # slow and use large mem
     name_result = dict()
     # parallel
     futures = []
-    data = data.astype(np.float64)
     with ProcessPoolExecutor() as executor:
         for i in range(len(data)):
             for j in range(i+1):

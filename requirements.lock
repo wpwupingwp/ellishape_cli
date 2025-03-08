@@ -34,16 +34,12 @@ h5py==3.13.0
     # via scikit-bio
 idna==3.10
     # via requests
-kaleido==0.2.1
-    # via ellishape-cli
 kiwisolver==1.4.8
     # via matplotlib
 loguru==0.7.2
     # via ellishape-cli
 matplotlib==3.10.0
     # via ellishape-cli
-narwhals==1.29.0
-    # via plotly
 natsort==8.4.0
     # via scikit-bio
 numpy==2.2.1
@@ -62,7 +58,6 @@ opencv-contrib-python==4.10.0.84
     # via ellishape-cli
 packaging==24.2
     # via matplotlib
-    # via plotly
     # via statsmodels
 pandas==2.2.3
     # via biom-format
@@ -73,8 +68,6 @@ patsy==1.0.1
     # via statsmodels
 pillow==11.1.0
     # via matplotlib
-plotly==6.0.0
-    # via ellishape-cli
 pyparsing==3.2.1
     # via matplotlib
 python-dateutil==2.9.0.post0
