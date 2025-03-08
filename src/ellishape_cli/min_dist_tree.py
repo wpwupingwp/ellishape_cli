@@ -50,27 +50,26 @@ def min_dist_on_angle(phi, A_dots, B_dots):
     return diff
 
 
-global m_pot
-def min_dist_on_angle_2(angle, A_dots, B_dots):
+def min_dist_on_angle2(phi, A_dots, B_dots):
     fft_a_conj = np.conj(np.fft.fft(A_dots, axis=0))
+    Ea = np.sum(A_dots**2)
     M = A_dots.shape[0]
 
-    cos_t = np.cos(angle)
-    sin_t = np.sin(angle)
+    cos_t = np.cos(phi.item())
+    sin_t = np.sin(phi.item())
     R = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
     B_dots_rotated = B_dots @ R.T
 
     # 计算交叉项互相关（利用FFT加速）
     fft_b = np.fft.fft(B_dots_rotated, axis=0)
-    cross_corr = np.fft.ifft(np.sum(fft_b * np.conj(fft_a_conj), axis=1)).real
+    cross_corr = np.fft.ifft(np.sum(fft_b * fft_a_conj, axis=1)).real
 
     # 找到最优偏移和最小距离
-    global m_pot
     m_opt = np.argmax(cross_corr)
-    E = np.sum(B_dots_rotated ** 2)
     C_max = cross_corr[m_opt]
-    D_min = np.sqrt(2 * (E - C_max) / M)
-    return D_min
+    Eb = np.sum(B_dots_rotated ** 2)
+    D_min = np.sqrt((Ea+Eb-2*C_max) / M)
+    return D_min.item()
 
 
 def min_dist_on_offset(offset, A_dots, B_dots):
@@ -308,7 +307,7 @@ def use_brute_angle(A_dots, B_dots):
     phi = x_result[0].item()
     dist = y_result
     log.warning(f'Brute,offset,{get_time_ms(end, start)} ms,'
-                f'rotate {np.rad2deg(phi):.6f}\u00b0, '
+                f'rotate {np.rad2deg(phi):.6f}\u00b0,offset ? dots, '
                 f'min distance {dist:.6f}')
     return phi, dist, brute_result
 
@@ -489,22 +488,12 @@ def plot_3d_v2(A_dots, B_dots):
 def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
     phi, dist, brute_result = use_brute_angle(A_dots, B_dots)
     B_dots_rotated = rotate_dots(B_dots, phi)
-    # log.info(f'Brute result: {phi}, {dist}')
     for name in ('Bounded', 'Powell'):
-        # for m in ('Powell',):
         a = timer()
         try:
             result2 = calibrate(A_dots, B_dots, min_dist_on_angle,method=name)
-            # phi = result2.x.item()
-            result2.x = np.append(result2.x, 0)
-            # dist = result2.fun
             b = timer()
             p_res(result2, name, b, a, 'angle')
-            # log.warning(f'{name} method on angle: {end2-start2:.6f} seconds, '
-            #             f'{result2.nit} iters, '
-            #             f'rotate {np.rad2deg(np.pi*2-phi):.6f}\u00b0, '
-            #             f'min distance {dist:.6f}')
-            # log.info(result2.message)
             # log.info(result2)
         except Exception as e:
             # raise
@@ -512,7 +501,7 @@ def only_find_best_angle(A_dots, B_dots, B_efd, n_dots, deg):
             log.error(e)
             continue
         # log.info(result2)
-    # plot(brute_result, A_dots, B_dots, B_dots_rotated, phi, n_dots)
+    plot(brute_result, A_dots, B_dots, B_dots_rotated, phi, n_dots)
     log.info(f'Rotate before minus after: '
              f'{np.sum(B_efd - rotate_efd(B_efd, -deg))}')
     return
@@ -540,12 +529,16 @@ def only_find_best_offset(A_dots, B_dots):
 
 
 def p_res(res, name, end, start, target):
-    phi, shift = res.x.tolist()
+    if target != 'angle':
+        phi, shift = res.x.tolist()
+    else:
+        phi, shift = res.x.item(), 0
     dist = res.fun
     ms = get_time_ms(end, start)
+    # result2.x = np.append(result2.x, 0)
     message = (f'{name},{target},{ms} ms,'
                f'{res.nit} iters,'
-               f'rotate {np.rad2deg(np.pi * 2 - phi):.6f}\u00b0,'
+               f'rotate {np.rad2deg(phi):.6f}\u00b0,'
                f'offset {shift:.6f} dots,'
                f'min distance {dist:.6f},'
                f'{res.success}')
@@ -618,12 +611,17 @@ def find_best_deepseek(A_dots, B_dots):
 
     # 在0到2π范围内均匀采样theta
     thetas = np.linspace(0, 2 * np.pi, theta_samples, endpoint=False)
+    cos_list = np.cos(thetas)
+    sin_list = np.sin(thetas)
     fft_a_conj = np.conj(np.fft.fft(A_dots, axis=0))
 
+    # for i in range(theta_samples):
     for theta in thetas:
         # 旋转点集a
         cos_t = np.cos(theta)
         sin_t = np.sin(theta)
+        # cos_t = cos_list[i]
+        # sin_t = sin_list[i]
         R = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
 
         b_rot = B_dots @ R.T
@@ -645,6 +643,7 @@ def find_best_deepseek(A_dots, B_dots):
         if distance < min_distance:
             min_distance = distance
             best_theta = theta
+            # best_theta = thetas[i]
             best_m = m
 
     b = timer()
@@ -720,7 +719,8 @@ def main():
 
     # when 11/12, shgo is best, but shgo is not stable
     # when 11/13, powell on angle is best, but shgo is not stable
-    # when 11/10, peng and ai differnt best
+    # when 11/10 or 1/99, peng and ai differnt best
+    # when 11,35, peng and ai is not best
     A_efd = data[11].reshape(-1, 4).astype(np.float64)
     B_efd = data[10].reshape(-1, 4).astype(np.float64)
     # B_efd = A_efd.copy()
@@ -740,7 +740,6 @@ def main():
                 f'rotate B {np.rad2deg(rad):.6f}\u00b0, '
                 f'offset {offset} dots')
 
-    # plot_3d(A_dots, B_dots)
     plot_3d_v2(A_dots, B_dots)
     # min_dist_on_offset(A_dots, B_dots)
     find_best(A_dots, B_dots, B_efd, deg, offset)

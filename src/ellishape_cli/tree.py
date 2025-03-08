@@ -381,6 +381,7 @@ def get_tree():
     matrix_time = timer()
 
     for m_name, matrix in zip(
+        # todo: add min_dist
             ['e_dist', 'h_dist', 's_dist'],
             [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
         if matrix is None:
