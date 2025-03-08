@@ -2,6 +2,7 @@ from pathlib import Path
 import argparse
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import Pool
 from timeit import default_timer as timer
 
 import cv2
@@ -236,8 +237,10 @@ def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
             for j in range(i+1):
                 a_name = names[i]
                 b_name = names[j]
-                a = data[i]
-                b = data[j]
+                a:np.ndarray = data[i].view()
+                b = data[j].view()
+                a.flags['WRITEABLE'] = False
+                b.flags['WRITEABLE'] = False
                 future = executor.submit(
                     get_distance, a_name, b_name, a, b,
                     get_h_dist, get_s_dist, get_min_dist)
@@ -410,7 +413,7 @@ def get_tree():
     start = timer()
     arg = parse_args()
 
-    arg.input = Path(arg.input).absolute().resolve()
+    arg.input = Path(arg.input).resolve()
     out_path = arg.input.parent / arg.output
     check_input_csv(arg.input)
 
@@ -419,7 +422,7 @@ def get_tree():
         log.error('Empty input')
         raise SystemExit(-1)
     if arg.kind is not None:
-        arg.kind = Path(arg.kind).absolute().resolve()
+        arg.kind = Path(arg.kind).resolve()
         check_input_csv(arg.kind)
         name_kind, kinds, kind_list = read_kind_csv(arg.kind, names)
     else:

@@ -895,8 +895,8 @@ def output_csv(input_file, out_file, dots, a, b, c, d, n_order, n_dots):
     dot_header = ['filepath'] + [
         f"{axis}{i}" for i in range(1, n_dots + 1) for axis in ('x', 'y')
     ]
-    efd_data = [str(input_file.absolute())] + Hs.tolist()
-    dot_data = [str(input_file.absolute())] + dots.ravel().tolist()
+    efd_data = [str(input_file.resolve())] + Hs.tolist()
+    dot_data = [str(input_file.resolve())] + dots.ravel().tolist()
 
     if efd_file.exists():
         log.info('Append data to existed file')
@@ -986,7 +986,7 @@ def get_args():
 
 
 def check_input(filename: str|Path) ->Path:
-    i = Path(filename).resolve().absolute()
+    i = Path(filename).resolve()
     if not i.exists() or not i.is_file():
         log.error(f'Cannot find input {i} or it is not a valid file')
         raise SystemExit(-1)
@@ -1029,7 +1029,7 @@ def init_args(arg_):
         else:
             arg.out = arg.input.with_suffix('.csv')
     else:
-        arg.out = Path(arg.out).absolute()
+        arg.out = Path(arg.out).resolve()
     if arg.out.exists():
         log.warning(f'Output {arg.out} exists.')
     return arg
