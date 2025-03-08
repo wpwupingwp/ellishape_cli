@@ -30,6 +30,9 @@ def parse_args():
                                    "format: sample name,kind name")
     arg.add_argument('-o', '-output', dest='output', default='out',
                      help='output prefix')
+    arg.add_argument('-min_dist', action='store_true',
+                     help='calculate minimum euclidean distance by rotate and '
+                          'shift curves')
     arg.add_argument('-h_dist', action='store_true',
                      help='calculate Hausdorff distance')
     arg.add_argument('-s_dist', action='store_true',
@@ -131,13 +134,47 @@ def matrix2csv(m_name: str, names: list, matrix: np.ndarray,
     return out_file
 
 
+def calc_min_dist(A_dots, B_dots):
+    # get min euclidean dist by rotate and offset dots
+    M = A_dots.shape[0]
+    assert B_dots.shape == (M, 2)
+    theta_samples = 360
+    best_theta = 0.0
+    best_m = 0
+    min_distance = float('inf')
+
+    E_a = np.sum(A_dots ** 2)
+
+    thetas = np.linspace(0, 2 * np.pi, theta_samples, endpoint=False)
+    fft_a_conj = np.conj(np.fft.fft(A_dots, axis=0))
+
+    for theta in thetas:
+        cos_t = np.cos(theta)
+        sin_t = np.sin(theta)
+        R = np.array([[cos_t, -sin_t], [sin_t, cos_t]])
+
+        b_rot = B_dots @ R.T
+
+        fft_b = np.fft.fft(b_rot, axis=0)
+        cross_corr = np.fft.ifft(np.sum(fft_b * fft_a_conj, axis=1)).real
+
+        m = np.argmax(cross_corr)
+        C_max = cross_corr[m]
+        E_b = np.sum(b_rot ** 2)
+        distance = np.sqrt((E_a + E_b - 2 * C_max) / M)
+
+        if distance < min_distance:
+            min_distance = distance
+            best_theta = theta
+            best_m = m
+    return min_distance, best_theta, best_m
+
+
 def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
-                 get_h_dist=False, get_s_dist=False):
+                 get_h_dist=False, get_s_dist=False, get_min_dist=False):
     pair_name = f'{a_name}-{b_name}'
-    a = a_raw.reshape(-1, 1, 2)
-    b = b_raw.reshape(-1, 1, 2)
     if a_name == b_name:
-        return pair_name, 0, 0
+        return pair_name, 0, 0, 0, 0, 0
     # Euclidean distance * sqrt(len(dots))
     # minus = a - b
     # e_dist = np.sqrt(
@@ -147,18 +184,26 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
     #         /len(minus))
     # )
     # e_dist = np.mean(np.linalg.norm(minus, axis=1))
-    s_dist, h_dist = 0, 0
+    s_dist, h_dist, min_dist, best_theta, best_offset = 0, 0, 0, 0, 0
     # Frobenius distance
     # if get_f_dist:
     #     f_dist = np.linalg.norm(minus)
     # s_dist shows long branch between square and rotated square
     if get_h_dist:
+        a = a_raw.reshape(-1, 1, 2)
+        b = b_raw.reshape(-1, 1, 2)
         h_dist = h_calc.computeDistance(a, b)
     if get_s_dist:
+        a = a_raw.reshape(-1, 1, 2)
+        b = b_raw.reshape(-1, 1, 2)
         s_dist = s_calc.computeDistance(a, b)
+    if get_min_dist:
+        a = a_raw.reshape(-1, 2)
+        b = b_raw.reshape(-1, 2)
+        min_dist, best_theta, best_offset = calc_min_dist(a, b)
     # log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
     log.info(f'{pair_name} done')
-    return pair_name, h_dist, s_dist
+    return pair_name, h_dist, s_dist, min_dist, best_theta, best_offset
 
 
 def get_distance_matrix2(data, no_factor=False):
@@ -179,9 +224,11 @@ def get_distance_matrix2(data, no_factor=False):
     return result
 
 
-def get_distance_matrix(names, data, get_s_dist: bool, get_h_dist: bool):
+def get_distance_matrix(names, data, get_s_dist: bool, get_h_dist: bool,
+                        get_min_dist: bool):
     # slow and use large mem
-    h_dist_matrix, s_dist_matrix = [], []
+    (h_dist_matrix, s_dist_matrix, min_dist_matrix,
+     angle_matrix, offset_matrix) = [list() for _ in range(5)]
     name_result = dict()
     # parallel
     futures = []
@@ -195,28 +242,39 @@ def get_distance_matrix(names, data, get_s_dist: bool, get_h_dist: bool):
                 b = data[j]
                 future = executor.submit(
                     get_distance, a_name, b_name, a, b,
-                    get_h_dist, get_s_dist)
+                    get_h_dist, get_s_dist, get_min_dist)
                 futures.append(future)
     for r in futures:
         result = r.result()
-        pair_name, h_dist, s_dist = result
-        name_result[pair_name] = [h_dist, s_dist]
+        pair_name, h_dist, s_dist, min_dist, angle, offset = result
+        name_result[pair_name] = [h_dist, s_dist, min_dist, angle, offset]
 
     # read result
     for i in range(len(data)):
-        h_dist_list, s_dist_list = [], []
-        for j in range(i+1):
+        h_dist_list, s_dist_list, min_dist_list, angle_list, offset_list = [
+            list() for i in range(5)]
+        for j in range(i + 1):
             a_name = names[i]
             b_name = names[j]
             pair_name = f'{a_name}-{b_name}'
-            h_dist, s_dist = name_result[pair_name]
+            h_dist, s_dist, min_dist, angle, offset = name_result[pair_name]
             h_dist_list.append(h_dist)
             s_dist_list.append(s_dist)
+            min_dist_list.append(min_dist)
+            angle_list.append(angle)
+            offset_list.append(offset)
         h_dist_matrix.append(h_dist_list)
         s_dist_matrix.append(s_dist_list)
+        min_dist_matrix.append(min_dist_list)
+        angle_matrix.append(angle_list)
+        offset_matrix.append(offset_list)
     h_dist_matrix_ = tril_to_matrix(h_dist_matrix)
     s_dist_matrix_ = tril_to_matrix(s_dist_matrix)
-    return h_dist_matrix_, s_dist_matrix_
+    min_dist_matrix_ = tril_to_matrix(min_dist_matrix)
+    angle_matrix_ = tril_to_matrix(angle_matrix)
+    offset_matrix_ = tril_to_matrix(offset_matrix)
+    return (h_dist_matrix_, s_dist_matrix_, min_dist_matrix_, angle_matrix_,
+            offset_matrix_)
 
 
 # def build_nj_tree(m_name, names: list, matrix: list, arg):
@@ -372,18 +430,20 @@ def get_tree():
     pca_time = timer()
 
     e_dist_matrix = get_distance_matrix2(data, arg.no_factor)
-    if arg.s_dist or arg.h_dist:
-        h_dist_matrix, s_dist_matrix = get_distance_matrix(
-            names, data, arg.s_dist, arg.h_dist)
+    if arg.s_dist or arg.h_dist or arg.min_dist:
+        (h_dist_matrix, s_dist_matrix, min_dist_matrix, angle_matrix,
+         offset_matrix) = get_distance_matrix(
+            names, data, arg.s_dist, arg.h_dist, arg.min_dist)
     else:
-        h_dist_matrix, s_dist_matrix = None, None
+        (h_dist_matrix, s_dist_matrix, min_dist_matrix, angle_matrix,
+         offset_matrix) = [None,] * 5
 
     matrix_time = timer()
 
     for m_name, matrix in zip(
-        # todo: add min_dist
-            ['e_dist', 'h_dist', 's_dist'],
-            [e_dist_matrix, h_dist_matrix, s_dist_matrix]):
+            ['e_dist', 'h_dist', 's_dist', 'min_dist', 'angle', 'offset'],
+            [e_dist_matrix, h_dist_matrix, s_dist_matrix, min_dist_matrix,
+             angle_matrix, offset_matrix]):
         if matrix is None:
             continue
         matrix2csv(m_name, names, matrix, out_path)
