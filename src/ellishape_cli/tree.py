@@ -237,10 +237,8 @@ def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
             for j in range(i+1):
                 a_name = names[i]
                 b_name = names[j]
-                a:np.ndarray = data[i].view()
-                b = data[j].view()
-                a.flags['WRITEABLE'] = False
-                b.flags['WRITEABLE'] = False
+                a = data[i]
+                b = data[j]
                 future = executor.submit(
                     get_distance, a_name, b_name, a, b,
                     get_h_dist, get_s_dist, get_min_dist)
