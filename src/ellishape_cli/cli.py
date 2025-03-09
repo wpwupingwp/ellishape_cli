@@ -806,7 +806,6 @@ def get_efd_from_chain_code(chain_code, n_order):
 
     # parallel
     with ProcessPoolExecutor() as pool:
-        # todo: send_bytes too expensive
         results = list(pool.map(compute_harmonic_coefficients,
                                 [chain_code] * n_order, range(n_order)))
 
