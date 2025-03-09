@@ -2,7 +2,6 @@ from pathlib import Path
 import argparse
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import Pool
 from timeit import default_timer as timer
 
 import cv2
@@ -20,7 +19,6 @@ from ellishape_cli.global_vars import log
 # contour coordinates
 h_calc = cv2.createHausdorffDistanceExtractor()
 s_calc = cv2.createShapeContextDistanceExtractor()
-pool = ProcessPoolExecutor()
 
 
 def parse_args():
