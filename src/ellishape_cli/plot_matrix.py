@@ -40,9 +40,9 @@ t3 = 'Dots minimum distance'
 t4 = 'Dots euclidean distance minus minimum distance'
 axes[0, 0].set_title(t1, pad=20)
 axes[0, 1].set_title(t2, pad=20)
-axes[1].set_title(t3, pad=20)
-axes[2].set_title(t4, pad=10)
-for img, ax in zip([img0, img1, img2, img3], axes):
+axes[1, 0].set_title(t3, pad=20)
+axes[1, 1].set_title(t4, pad=10)
+for img, ax in zip([img0, img1, img2, img3], axes.ravel()):
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_aspect('equal')
