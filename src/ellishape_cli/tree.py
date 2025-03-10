@@ -43,7 +43,7 @@ def parse_args():
     return arg.parse_args()
 
 
-def read_csv(input_file: Path, simple_name=True):
+def read_csv(input_file: Path, simple_name=True, no_same=True):
     # read input csv
     # sample name, values
     raw_data = np.loadtxt(input_file, delimiter=',', dtype=str, quotechar='"')
@@ -54,8 +54,8 @@ def read_csv(input_file: Path, simple_name=True):
         s2 = set()
         for i in names:
             simple = Path(i).stem
-            if simple in s2:
-                log.warning(f'Found duplicate names: {i} -> {simple}')
+            if simple in s2 and no_same:
+                log.error(f'Found duplicate names: {i} -> {simple}')
                 raise SystemExit(-2)
             s2.add(simple)
             simple_names.append(simple)
@@ -137,7 +137,6 @@ def matrix2csv(m_name: str, names: list, matrix: np.ndarray,
 def calc_min_dist(A_dots, B_dots):
     # get min euclidean dist by rotate and offset dots
     M = A_dots.shape[0]
-    assert B_dots.shape == (M, 2)
     theta_samples = 360
     best_theta = 0.0
     best_m = 0
@@ -222,6 +221,7 @@ def get_distance_matrix2(data, no_factor=False):
     s_pdist2 = s_pdist * factor
     result = squareform(s_pdist2)
     return result
+
 
 def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
                         get_min_dist: bool):
@@ -322,6 +322,7 @@ def tree_from_dist(input_file):
     tree.write('tree.nwk', 'newick')
     np.savetxt('new.csv', a, delimiter=',', fmt='%s')
     return
+
 
 def build_nj_tree2(m_name:str, names: np.array, matrix: np.ndarray[float],
                    out_path) -> Path:
@@ -473,6 +474,7 @@ def get_tree():
     log.info(f'\t{"Tree and write:":<15} {end - matrix_time:.3f}')
     log.info('Done')
     return
+
 
 if __name__ == '__main__':
     get_tree()
