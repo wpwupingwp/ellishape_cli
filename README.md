@@ -84,7 +84,7 @@ Calculate distance between samples with several methods and build neighbor-joini
 
 ## Usage
 
-Calculate Minimum Euclidean distance and build trees.
+Calculate __Minimum Euclidean Distance__ and build trees.
 
 ```bash
 python3 -m  ellishape_cli.tree -i dots.csv -min_dist -o result
@@ -152,11 +152,11 @@ cell2,typeB
 ### Basic Distance Analysis
 
 ```bash
-python3 -m ellishape_cli -i shapes.csv -min_dist -h_dist -o cell_comparison
+python3 -m ellishape_cli.tree -i shapes.csv -min_dist -h_dist -o cell_comparison
 ```
 
 ### Category-based Analysis
 
 ```bash
-python3 -m ellishape_cli -i features.csv -kind cell_types.csv -s_dist -pca -o typed_analysis
+python3 -m ellishape_cli.tree -i features.csv -kind cell_types.csv -s_dist -pca -o typed_analysis
 ```
