@@ -82,13 +82,13 @@ def read_kind_csv(category_csv: Path, sample_names: list) -> (dict, list):
     missing2 = set(name_kind.keys()).difference(set(sample_names))
     if len(missing1) > 0:
         log.warning(f'{len(missing1)} found in sample list but not in kind list')
-        log.info(f'{"\n".join(missing1)}')
+        log.info("\n".join(missing1))
         log.critical('Continue?')
         if not input().lower().startswith('y'):
             raise SystemExit(-3)
     if len(missing2) > 0:
         log.warning(f'{len(missing2)} found in kind list but not in sample list')
-        log.info(f'{"\n".join(missing2)}')
+        log.info("\n".join(missing2))
         log.critical('Continue?')
         if not input().lower().startswith('y'):
             raise SystemExit(-3)
