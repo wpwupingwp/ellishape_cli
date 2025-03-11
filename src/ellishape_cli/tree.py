@@ -170,7 +170,8 @@ def calc_min_dist(A_dots, B_dots):
 
 
 def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
-                 get_h_dist=False, get_s_dist=False, get_min_dist=False):
+                 get_h_dist=False, get_s_dist=False, get_min_dist=False,
+                 shape1=2):
     pair_name = f'{a_name}-{b_name}'
     if a_name == b_name:
         return pair_name, 0, 0, 0, 0, 0
@@ -188,6 +189,8 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
     # if get_f_dist:
     #     f_dist = np.linalg.norm(minus)
     # s_dist shows long branch between square and rotated square
+    # h_dist and s_dist only support dots as input
+    # min_dist and e_dist theoretically accepts efd as input
     if get_h_dist:
         a = a_raw.reshape(-1, 1, 2)
         b = b_raw.reshape(-1, 1, 2)
@@ -197,8 +200,8 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
         b = b_raw.reshape(-1, 1, 2)
         s_dist = s_calc.computeDistance(a, b)
     if get_min_dist:
-        a = a_raw.reshape(-1, 2)
-        b = b_raw.reshape(-1, 2)
+        a = a_raw.reshape(-1, shape1)
+        b = b_raw.reshape(-1, shape1)
         min_dist, best_theta, best_offset = calc_min_dist(a, b)
     # log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
     log.info(f'{pair_name} done')
@@ -224,7 +227,9 @@ def get_distance_matrix2(data, no_factor=False):
 
 
 def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
-                        get_min_dist: bool):
+                        get_min_dist: bool, shape1=2):
+    if (get_s_dist or get_h_dist) and shape1 != 2:
+        log.error('h_dist and s_dist only accept dots as input!')
     # slow and use large mem
     name_result = dict()
     # parallel
@@ -238,7 +243,7 @@ def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
                 b = data[j]
                 future = executor.submit(
                     get_distance, a_name, b_name, a, b,
-                    get_h_dist, get_s_dist, get_min_dist)
+                    get_h_dist, get_s_dist, get_min_dist, shape1)
                 futures.append(future)
     for r in futures:
         result = r.result()
