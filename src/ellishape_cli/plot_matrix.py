@@ -15,7 +15,7 @@ c_file = Path(argv[3])
 _, a = read_csv(a_file, no_same=False)
 _, b = read_csv(b_file, no_same=False)
 _, c = read_csv(c_file, no_same=False)
-efd_e_dist_matrix = get_distance_matrix2(c, False, shape1=4)
+efd_e_dist_matrix = get_distance_matrix2(c, False, _type='efd')
 
 vmin = np.min(b)
 vmax = np.max(a)

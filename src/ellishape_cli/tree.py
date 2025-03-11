@@ -170,8 +170,7 @@ def calc_min_dist(A_dots, B_dots):
 
 
 def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
-                 get_h_dist=False, get_s_dist=False, get_min_dist=False,
-                 shape1=2):
+                 get_h_dist=False, get_s_dist=False, get_min_dist=False):
     pair_name = f'{a_name}-{b_name}'
     if a_name == b_name:
         return pair_name, 0, 0, 0, 0, 0
@@ -200,26 +199,31 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
         b = b_raw.reshape(-1, 1, 2)
         s_dist = s_calc.computeDistance(a, b)
     if get_min_dist:
-        a = a_raw.reshape(-1, shape1)
-        b = b_raw.reshape(-1, shape1)
+        a = a_raw.reshape(-1, 2)
+        b = b_raw.reshape(-1, 2)
         min_dist, best_theta, best_offset = calc_min_dist(a, b)
     # log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
     log.info(f'{pair_name} done')
     return pair_name, h_dist, s_dist, min_dist, best_theta, best_offset
 
 
-def get_distance_matrix2(data, no_factor=False):
+def get_distance_matrix2(data, no_factor=False, _type='dots'):
     # samples, n_sample rows n_dots columns
     log.debug('Start calculating euclidean distance')
     m, n = data.shape
     data = data.reshape((m, -1)).astype(np.float64)
+    if _type == 'dots':
+        n_divide = 2
+    else:
+        # efd: a b c d
+        n_divide = 4
     s_pdist = pdist(data)
     # todo: cosine?
     if no_factor:
         log.warning('Set factor of euclidean distance matrix to 1')
         factor = 1
     else:
-        factor = np.sqrt(1/(n/2))
+        factor = np.sqrt(1/(n/n_divide))
     # factor = 1
     s_pdist2 = s_pdist * factor
     result = squareform(s_pdist2)
@@ -227,9 +231,7 @@ def get_distance_matrix2(data, no_factor=False):
 
 
 def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
-                        get_min_dist: bool, shape1=2):
-    if (get_s_dist or get_h_dist) and shape1 != 2:
-        log.error('h_dist and s_dist only accept dots as input!')
+                        get_min_dist: bool):
     # slow and use large mem
     name_result = dict()
     # parallel
@@ -243,7 +245,7 @@ def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
                 b = data[j]
                 future = executor.submit(
                     get_distance, a_name, b_name, a, b,
-                    get_h_dist, get_s_dist, get_min_dist, shape1)
+                    get_h_dist, get_s_dist, get_min_dist)
                 futures.append(future)
     for r in futures:
         result = r.result()
