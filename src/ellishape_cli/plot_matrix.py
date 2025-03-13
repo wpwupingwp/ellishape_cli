@@ -27,14 +27,18 @@ font_settings = {'legend.fontsize': 'large', 'axes.labelsize': 'x-large',
                  'axes.titlesize': 'xx-large'}
 plt.rcParams.update(font_settings)
 
-img0 = axes[0, 0].imshow(efd_e_dist_matrix, cmap=cmap, interpolation='nearest')
-img1 = axes[0, 1].imshow(a, vmin=vmin, vmax=vmax, cmap=cmap,
-                      interpolation='nearest')
-img2 = axes[1, 0].imshow(b, vmin=vmin, vmax=vmax, cmap=cmap,
-                      interpolation='nearest')
-img3 = axes[1, 1].imshow(
-    a - b, vmin = vmin, vmax = vmax, cmap=cmap,
-    interpolation = 'nearest')
+img0 = axes[0, 0].imshow(efd_e_dist_matrix, cmap=cmap,
+                         # vmin=vmin, vmax=vmax,
+                         interpolation='nearest')
+img1 = axes[0, 1].imshow(a, cmap=cmap,
+                         # vmin=vmin, vmax=vmax,
+                         interpolation='nearest')
+img2 = axes[1, 0].imshow(b, cmap=cmap,
+                         # vmin=vmin, vmax=vmax,
+                         interpolation='nearest')
+img3 = axes[1, 1].imshow(a - b, cmap=cmap,
+                         # vmin=vmin, vmax=vmax,
+                         interpolation='nearest')
 t1 = 'EFD distance'
 t2 = 'Dots euclidean distance'
 t3 = 'Dots minimum distance'
