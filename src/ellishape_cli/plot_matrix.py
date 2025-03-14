@@ -21,33 +21,34 @@ vmin = np.min(b)
 vmax = np.max(a)
 cmap = 'coolwarm'
 
-fig, axes = plt.subplots(2, 2, figsize=(20, 20))
+# fig, axes = plt.subplots(2, 2, figsize=(20, 20))
+fig, axes = plt.subplots(1, 3, figsize=(20, 10))
 font_settings = {'legend.fontsize': 'large', 'axes.labelsize': 'x-large',
                  'xtick.labelsize': 'large', 'ytick.labelsize': 'large',
                  'axes.titlesize': 'xx-large'}
 plt.rcParams.update(font_settings)
 
-img0 = axes[0, 0].imshow(efd_e_dist_matrix, cmap=cmap,
-                         # vmin=vmin, vmax=vmax,
+# img0 = axes[0].imshow(efd_e_dist_matrix, cmap=cmap,
+#                          vmin=vmin, vmax=vmax,
+#                          interpolation='nearest')
+img1 = axes[0].imshow(a, cmap=cmap,
+                         vmin=vmin, vmax=vmax,
                          interpolation='nearest')
-img1 = axes[0, 1].imshow(a, cmap=cmap,
-                         # vmin=vmin, vmax=vmax,
+img2 = axes[1].imshow(b, cmap=cmap,
+                         vmin=vmin, vmax=vmax,
                          interpolation='nearest')
-img2 = axes[1, 0].imshow(b, cmap=cmap,
-                         # vmin=vmin, vmax=vmax,
-                         interpolation='nearest')
-img3 = axes[1, 1].imshow(a - b, cmap=cmap,
-                         # vmin=vmin, vmax=vmax,
+img3 = axes[2].imshow(a - b, cmap=cmap,
+                         vmin=vmin, vmax=vmax,
                          interpolation='nearest')
 t1 = 'EFD distance'
 t2 = 'Dots euclidean distance'
 t3 = 'Dots minimum distance'
 t4 = 'Dots euclidean distance minus minimum distance'
-axes[0, 0].set_title(t1, pad=20)
-axes[0, 1].set_title(t2, pad=20)
-axes[1, 0].set_title(t3, pad=20)
-axes[1, 1].set_title(t4, pad=10)
-for img, ax in zip([img0, img1, img2, img3], axes.ravel()):
+# axes[0, 0].set_title(t1, pad=20)
+axes[0].set_title(t2, pad=20)
+axes[1].set_title(t3, pad=20)
+axes[2].set_title(t4, pad=10)
+for img, ax in zip([img1, img2, img3], axes.ravel()):
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_aspect('equal')
@@ -55,4 +56,5 @@ for img, ax in zip([img0, img1, img2, img3], axes.ravel()):
     cax = divider.append_axes('right', size='5%', pad=0.05)
     plt.colorbar(img, cax=cax, label='Distance')
 plt.tight_layout(pad=5)
+plt.savefig('distance matrix comparison.pdf')
 plt.show()
