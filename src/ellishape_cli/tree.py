@@ -69,8 +69,9 @@ def read_kind_csv(category_csv: Path, sample_names: list) -> (dict, list):
     name_kind = dict()
     raw_data = np.loadtxt(category_csv, delimiter=',', dtype=str, quotechar='"',
                           skiprows=1)
-    kind_list = raw_data[1:, 1:].flatten().tolist()
+    kind_list = raw_data[:, 1:].flatten().tolist()
     with open(category_csv, 'r', encoding='utf-8') as f:
+        next(f)
         for line in f:
             name, kind = line.rstrip().split(',')
             simple_name = Path(name).stem
