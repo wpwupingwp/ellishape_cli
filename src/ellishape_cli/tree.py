@@ -204,7 +204,7 @@ def get_distance(a_name: str, b_name: str, a_raw: np.array, b_raw: np.array,
         b = b_raw.reshape(-1, 2)
         min_dist, best_theta, best_offset = calc_min_dist(a, b)
     # log.debug(f'{e_dist=:.2f} {h_dist=:.2f} {s_dist=:.2f}')
-    log.info(f'{pair_name} done')
+    log.debug(f'{pair_name} done')
     return pair_name, h_dist, s_dist, min_dist, best_theta, best_offset
 
 
@@ -233,6 +233,8 @@ def get_distance_matrix2(data, no_factor=False, _type='dots'):
 
 def get_distance_matrix(names, data, get_h_dist: bool, get_s_dist: bool,
                         get_min_dist: bool):
+    log.info('Start calculating distance')
+    log.info('May be slow and cost large memory')
     # slow and use large mem
     name_result = dict()
     # parallel
