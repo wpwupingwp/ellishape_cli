@@ -144,10 +144,10 @@ def draw_leaf(name, dots, long_branch, tree):
     return
 
 
-def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_file,
+def draw_circular_tree(tree, positions, img_width, text_size, output_file,
                        long_branch: set):
     """绘制环形树并添加文字和图片"""
-    fig, ax = plt.subplots(figsize=(32, 32))
+    fig, ax = plt.subplots(figsize=(40, 40))
     ax.set_aspect('equal')
     ax.axis('off')
     
@@ -265,8 +265,6 @@ def parse_args():
     parser.add_argument('-dot', help='.dot.csv文件')
     parser.add_argument("-o", "--output", default="tree.png",
                         help="输出图片文件名（默认：tree.png）")
-    parser.add_argument("-d", "--image_dir", default=".",
-                        help="图片目录路径（默认：当前目录）")
     parser.add_argument("-w", "--img_width", type=int, default=100,
                         help="图片显示宽度（默认：100像素）")
     parser.add_argument("-t", "--text_size", type=int, default=10,
@@ -306,7 +304,7 @@ def main():
     positions = calculate_circular_layout(tree)
     # 绘制树
     draw_leaf(name, dots, long_branch, tree)
-    draw_circular_tree(tree, positions, arg.image_dir, arg.img_width, arg.text_size, arg.output,
+    draw_circular_tree(tree, positions, arg.img_width, arg.text_size, arg.output,
                        long_branch)
 
 if __name__ == "__main__":
