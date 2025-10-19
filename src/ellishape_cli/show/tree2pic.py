@@ -1,5 +1,7 @@
 import argparse
-import os
+# use pathlib instead of os
+from scipy import stats
+from pathlib import Path
 import numpy as np
 from Bio import Phylo
 from Bio.Phylo import BaseTree
@@ -10,18 +12,35 @@ from matplotlib.patches import FancyArrowPatch
 import matplotlib
 from matplotlib import colors
 
+from ellishape_cli.tree import read_csv
+
 # 使用非交互式后端
 matplotlib.use('Agg')
 
 def load_and_preprocess_tree(newick_file):
     """加载Newick文件并预处理树结构"""
     tree = Phylo.read(newick_file, 'newick')
-    
     # 清理叶子节点名称
-    for leaf in tree.get_terminals():
-        leaf.name = leaf.name.strip('"').strip("'").replace("_", " ").rstrip()
-    
+    # for leaf in tree.get_terminals():
+        # leaf.name = leaf.name.strip('"').strip("'").replace("_", " ").rstrip()
     return tree
+
+
+def get_long_branches(tree) -> set:
+    # use scipy
+    z_score_limit = 3
+    name = list()
+    length = list()
+    long_branch = set()
+    for i in tree.get_terminals():
+        name.append(i.name)
+        length.append(i.branch_length)
+    z_score = stats.zscore(length)
+    for index, score in enumerate(z_score):
+        if np.abs(score) >= z_score_limit:
+            long_branch.add(name[index])
+    return long_branch
+
 
 def sort_tree_by_leaf_count(tree):
     """按叶子节点数量对树进行排序"""
@@ -105,15 +124,16 @@ def calculate_circular_layout(tree):
     
     return pos
 
-def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_file):
+def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_file,
+                       long_branch: set, name: np.ndarray, dots: np.ndarray):
     """绘制环形树并添加文字和图片"""
     fig, ax = plt.subplots(figsize=(16, 16))
     ax.set_aspect('equal')
     ax.axis('off')
     
     # 定义颜色 - 使用原脚本的颜色方案
-    COLORS = ["#377eb8", "#ff7f00", "#4daf4a"]
-    branch_color = COLORS[2]  # 绿色分支
+    # COLORS = ["#377eb8", "#ff7f00", "#4daf4a"]
+    # branch_color = COLORS[2]  # 绿色分支
     
     # 绘制分支 - 使用简单线条，避免默认样式
     for clade in tree.find_clades():
@@ -127,9 +147,8 @@ def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_
                 
             x1, y1 = positions[parent]
             x2, y2 = positions[clade]
-            
             # 使用plot绘制简单线条，避免默认箭头样式
-            ax.plot([x1, x2], [y1, y2], color=branch_color, linewidth=3, solid_capstyle='round')
+            ax.plot([x1, x2], [y1, y2], color='black', linewidth=3, solid_capstyle='round')
     
     # 添加文字和图片到叶子节点
     for leaf in tree.get_terminals():
@@ -155,48 +174,57 @@ def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_
             text_angle = angle + np.pi
         
         # 添加文字标签 - 显式设置背景为透明
-        ax.text(text_x, text_y, node_name, 
-                ha=ha, va='center', fontsize=text_size, color='black',
+        # mark long as red
+        if leaf.name in long_branch:
+            text_color = 'red'
+        else:
+            text_color = 'black'
+        ax.text(text_x, text_y, node_name,
+                ha=ha, va='center', fontsize=text_size, color=text_color,
                 rotation=np.degrees(text_angle), rotation_mode='anchor',
                 bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.7, 
                          edgecolor='none'))  # 添加白色半透明背景提高可读性
         
         # 添加图片 - 在文字更外侧
-        image_path = os.path.join(image_dir, f"{node_name}.png")
-        if os.path.exists(image_path):
-            try:
-                img = mpimg.imread(image_path)
-                
-                # 计算图片位置 - 在文字外侧
-                img_radius = 1.25  # 图片在更外侧
-                img_x = img_radius * np.cos(angle)
-                img_y = img_radius * np.sin(angle)
-                
-                # 计算合适的缩放因子
-                fig_width_inches = 16  # 图形宽度（英寸）
-                dpi = 300  # 输出DPI
-                target_width_pixels = img_width  # 目标宽度（像素）
-                target_width_inches = target_width_pixels / dpi
-                # 估算数据坐标中的宽度（假设图形显示范围约为2.4单位）
-                data_width = target_width_inches / fig_width_inches * 2.4
-                # 根据图片原始尺寸计算缩放
-                if img.shape[1] > 0:  # 确保有宽度
-                    zoom_factor = data_width / img.shape[1] * 2.0  # 调整因子
-                else:
-                    zoom_factor = 0.05
-                
-                imagebox = OffsetImage(img, zoom=zoom_factor, alpha=1.0)
-                ab = AnnotationBbox(imagebox, (img_x, img_y), 
-                                  frameon=False,  # 无边框
-                                  boxcoords="data",
-                                  pad=0)
-                ax.add_artist(ab)
-                print(f"成功添加图片: {node_name}")
-            except Exception as e:
-                print(f"警告: 无法加载图片 {image_path}: {e}")
-        else:
-            print(f"警告: 未找到节点 {node_name} 的图片: {image_path}")
-    
+        # only add figure for long branch
+        if leaf.name in long_branch:
+            image_path = Path(leaf.name).with_suffix('.png')
+            # print(name.dtype, type(leaf.name), leaf.name, name[0])
+            x = np.argwhere(name==leaf.name)[0]
+            leaf_dot = dots[x].reshape(-1, 2)
+            fig2, ax2 = plt.subplots(figsize=(16, 16))
+            ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], 'c--', linewidth=2)
+            ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], 'bo', linewidth=1, alpha=0.5)
+            plt.savefig(image_path)
+
+            img = mpimg.imread(image_path)
+
+            # 计算图片位置 - 在文字外侧
+            img_radius = 1.25  # 图片在更外侧
+            img_x = img_radius * np.cos(angle)
+            img_y = img_radius * np.sin(angle)
+
+            # 计算合适的缩放因子
+            fig_width_inches = 16  # 图形宽度（英寸）
+            dpi = 300  # 输出DPI
+            target_width_pixels = img_width  # 目标宽度（像素）
+            target_width_inches = target_width_pixels / dpi
+            # 估算数据坐标中的宽度（假设图形显示范围约为2.4单位）
+            data_width = target_width_inches / fig_width_inches * 2.4
+            # 根据图片原始尺寸计算缩放
+            if img.shape[1] > 0:  # 确保有宽度
+                zoom_factor = data_width / img.shape[1] * 2.0  # 调整因子
+            else:
+                zoom_factor = 0.05
+
+            imagebox = OffsetImage(img, zoom=zoom_factor, alpha=1.0)
+            ab = AnnotationBbox(imagebox, (img_x, img_y),
+                              frameon=False,  # 无边框
+                              boxcoords="data",
+                              pad=0)
+            ax.add_artist(ab)
+            print(f"成功添加图片: {node_name}")
+
     # 设置绘图范围，留出足够空间显示文字和图片
     margin = 0.4
     ax.set_xlim(-1.2 - margin, 1.2 + margin)
@@ -208,28 +236,56 @@ def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_
     plt.close()
     print(f"进化树已保存至：{output_file}")
 
-def main(newick_file, output_image="tree.png", image_dir=".", img_width=100, text_size=12):
-    """主函数：处理树数据并生成可视化"""
-    # 加载和预处理树
-    tree = load_and_preprocess_tree(newick_file)
-    
-    # 排序树
-    tree = sort_tree_by_leaf_count(tree)
-    
-    # 计算环形布局
-    positions = calculate_circular_layout(tree)
-    
-    # 绘制树
-    draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_image)
 
-if __name__ == "__main__":
+def parse_args():
+    # independent function
     parser = argparse.ArgumentParser(description="生成带文字和图片的环形进化树")
     parser.add_argument("newick_file", help="输入Newick格式的进化树文件")
-    parser.add_argument("-o", "--output", default="tree.png", help="输出图片文件名（默认：tree.png）")
-    parser.add_argument("-d", "--image_dir", default=".", help="图片目录路径（默认：当前目录）")
-    parser.add_argument("-w", "--img_width", type=int, default=100, help="图片显示宽度（默认：100像素）")
-    parser.add_argument("-t", "--text_size", type=int, default=12, help="文字大小（默认：12）")
-    
+    parser.add_argument('-dot', help='.dot.csv文件')
+    parser.add_argument("-o", "--output", default="tree.png",
+                        help="输出图片文件名（默认：tree.png）")
+    parser.add_argument("-d", "--image_dir", default=".",
+                        help="图片目录路径（默认：当前目录）")
+    parser.add_argument("-w", "--img_width", type=int, default=100,
+                        help="图片显示宽度（默认：100像素）")
+    parser.add_argument("-t", "--text_size", type=int, default=12,
+                        help="文字大小（默认：12）")
     args = parser.parse_args()
-    
-    main(args.newick_file, args.output, args.image_dir, args.img_width, args.text_size)
+    return args
+
+
+def init_args(arg):
+    # init paths
+    arg.newick_file = Path(arg.newick_file).resolve()
+    assert arg.newick_file.exists()
+    arg.dot = Path(arg.dot).resolve()
+    assert arg.dot.exists()
+    arg.output = Path(arg.output).resolve()
+    return arg
+
+
+def main():
+    """主函数：处理树数据并生成可视化"""
+    # 加载和预处理树
+    arg = parse_args()
+    arg = init_args(arg)
+    name, data = read_csv(arg.dot)
+    # remove in windows
+    name = [i.split('\\')[-1] for i in name]
+    name = np.array(name, dtype=np.str_)
+    a, b = data.shape
+
+    dots = data.reshape(a, b//2, 2)
+
+    tree = load_and_preprocess_tree(arg.newick_file)
+    long_branch = get_long_branches(tree)
+    # 排序树
+    tree = sort_tree_by_leaf_count(tree)
+    # 计算环形布局
+    positions = calculate_circular_layout(tree)
+    # 绘制树
+    draw_circular_tree(tree, positions, arg.image_dir, arg.img_width, arg.text_size, arg.output,
+                       long_branch, name, dots)
+
+if __name__ == "__main__":
+    main()

@@ -12,6 +12,8 @@
 -e file:.
 biom-format==2.1.16
     # via scikit-bio
+biopython==1.85
+    # via ellishape-cli
 certifi==2025.1.31
     # via requests
 charset-normalizer==3.4.1
@@ -35,12 +37,13 @@ kiwisolver==1.4.8
     # via matplotlib
 loguru==0.7.2
     # via ellishape-cli
-matplotlib==3.10.0
+matplotlib==3.10.7
     # via ellishape-cli
 natsort==8.4.0
     # via scikit-bio
 numpy==2.2.1
     # via biom-format
+    # via biopython
     # via contourpy
     # via ellishape-cli
     # via h5py
@@ -76,8 +79,9 @@ requests==2.32.3
     # via scikit-bio
 scikit-bio==0.6.3
     # via ellishape-cli
-scipy==1.15.2
+scipy==1.16.2
     # via biom-format
+    # via ellishape-cli
     # via scikit-bio
     # via statsmodels
 six==1.17.0
