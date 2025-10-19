@@ -124,10 +124,30 @@ def calculate_circular_layout(tree):
     
     return pos
 
+
+def draw_leaf(name, dots, long_branch, tree):
+    for leaf in tree.get_terminals():
+        if leaf.name in long_branch:
+            image_path = Path(leaf.name)
+            image_path = image_path.with_suffix(image_path.suffix+'.png')
+            fig, ax = plt.subplots()
+            # print(name.dtype, type(leaf.name), leaf.name, name[0])
+            x = np.argwhere(name == leaf.name)[0]
+            leaf_dot = dots[x].reshape(-1, 2)
+            fig2, ax2 = plt.subplots(figsize=(16, 16))
+            ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], 'c--', linewidth=2)
+            ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], 'bo', linewidth=1,
+                     alpha=0.5)
+            plt.savefig(image_path)
+            print(image_path)
+    plt.close()
+    return
+
+
 def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_file,
-                       long_branch: set, name: np.ndarray, dots: np.ndarray):
+                       long_branch: set):
     """绘制环形树并添加文字和图片"""
-    fig, ax = plt.subplots(figsize=(16, 16))
+    fig, ax = plt.subplots(figsize=(32, 32))
     ax.set_aspect('equal')
     ax.axis('off')
     
@@ -188,15 +208,16 @@ def draw_circular_tree(tree, positions, image_dir, img_width, text_size, output_
         # 添加图片 - 在文字更外侧
         # only add figure for long branch
         if leaf.name in long_branch:
-            image_path = Path(leaf.name).with_suffix('.png')
+            l = Path(leaf.name)
+            image_path = l.with_suffix(l.suffix+'.png')
             # print(name.dtype, type(leaf.name), leaf.name, name[0])
-            x = np.argwhere(name==leaf.name)[0]
-            leaf_dot = dots[x].reshape(-1, 2)
-            fig2, ax2 = plt.subplots(figsize=(16, 16))
-            ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], 'c--', linewidth=2)
-            ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], 'bo', linewidth=1, alpha=0.5)
-            plt.savefig(image_path)
-
+            # x = np.argwhere(name==leaf.name)[0]
+            # leaf_dot = dots[x].reshape(-1, 2)
+            # fig2, ax2 = plt.subplots(figsize=(16, 16))
+            # ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], 'c--', linewidth=2)
+            # ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], 'bo', linewidth=1, alpha=0.5)
+            # plt.savefig(image_path)
+            #
             img = mpimg.imread(image_path)
 
             # 计算图片位置 - 在文字外侧
@@ -248,8 +269,8 @@ def parse_args():
                         help="图片目录路径（默认：当前目录）")
     parser.add_argument("-w", "--img_width", type=int, default=100,
                         help="图片显示宽度（默认：100像素）")
-    parser.add_argument("-t", "--text_size", type=int, default=12,
-                        help="文字大小（默认：12）")
+    parser.add_argument("-t", "--text_size", type=int, default=10,
+                        help="文字大小（默认：10）")
     args = parser.parse_args()
     return args
 
@@ -284,8 +305,9 @@ def main():
     # 计算环形布局
     positions = calculate_circular_layout(tree)
     # 绘制树
+    draw_leaf(name, dots, long_branch, tree)
     draw_circular_tree(tree, positions, arg.image_dir, arg.img_width, arg.text_size, arg.output,
-                       long_branch, name, dots)
+                       long_branch)
 
 if __name__ == "__main__":
     main()
