@@ -26,20 +26,66 @@ def load_and_preprocess_tree(newick_file):
     return tree
 
 
-def get_long_branches(tree) -> set:
+def get_terminales(tree) -> set:
+    # get long and normal terminales
     # use scipy
     z_score_limit = 3
     name = list()
     length = list()
-    long_branch = set()
+    long_terminal = set()
+    normal_terminal_len = list()
+    normal_terminal = list()
     for i in tree.get_terminals():
         name.append(i.name)
         length.append(i.branch_length)
     z_score = stats.zscore(length)
     for index, score in enumerate(z_score):
         if np.abs(score) >= z_score_limit:
-            long_branch.add(name[index])
-    return long_branch
+            long_terminal.add(name[index])
+        else:
+            normal_terminal_len.append((name[index], length[index]))
+    # sort by length and select represents
+    normal_terminal_len.sort(key=lambda x:x[1])
+    if len(long_terminal) == 0:
+        normal_terminal = normal_terminal_len[0][0]
+    else:
+        for i in range(0, len(normal_terminal_len), len(length)//len(long_terminal)):
+            normal_terminal.append(normal_terminal_len[i][0])
+    return long_terminal, normal_terminal
+
+
+def draw_figure(long_terminal, normal_terminal, output):
+
+    n_cols = len(long_terminal)
+    figsize = (n_cols*5, 10)
+    long_imgs = [Path(i+'.png') for i in long_terminal]
+    normal_imgs = [Path(i+'.png') for i in normal_terminal]
+
+    # Create figure and subplots
+    fig, axes = plt.subplots(2, n_cols, figsize=figsize)
+
+    # If there's only one column, axes will be 1D array
+    if n_cols == 1:
+        axes = axes.reshape(2, 1)
+
+    # Plot first row
+    for i, img_path in enumerate(long_imgs):
+        img = mpimg.imread(img_path)
+        axes[0, i].imshow(img)
+        axes[0, i].set_title(img_path.stem+' bad')
+        axes[0, i].axis('off')
+
+    # Plot second row
+    for i, img_path in enumerate(normal_imgs):
+        img = mpimg.imread(img_path)
+        axes[1, i].imshow(img)
+        axes[1, i].set_title(img_path.stem)
+        axes[1, i].axis('off')
+
+    print('Up: bad Down: good')
+    plt.tight_layout()
+    plt.savefig(output)
+    return
 
 
 def sort_tree_by_leaf_count(tree):
@@ -125,9 +171,9 @@ def calculate_circular_layout(tree):
     return pos
 
 
-def draw_leaf(name, dots, long_branch, tree):
+def draw_leaf(name, dots, terminals, tree):
     for leaf in tree.get_terminals():
-        if leaf.name in long_branch:
+        if leaf.name in terminals:
             image_path = Path(leaf.name)
             image_path = image_path.with_suffix(image_path.suffix+'.png')
             fig, ax = plt.subplots()
@@ -135,17 +181,16 @@ def draw_leaf(name, dots, long_branch, tree):
             x = np.argwhere(name == leaf.name)[0]
             leaf_dot = dots[x].reshape(-1, 2)
             fig2, ax2 = plt.subplots(figsize=(16, 16))
-            ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], 'c--', linewidth=2)
-            ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], 'bo', linewidth=1,
+            ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], 'b', linewidth=5)
+            ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], 'co', linewidth=1,
                      alpha=0.5)
             plt.savefig(image_path)
-            print(image_path)
     plt.close()
     return
 
 
 def draw_circular_tree(tree, positions, img_width, text_size, output_file,
-                       long_branch: set):
+                       long_terminal: set):
     """绘制环形树并添加文字和图片"""
     fig, ax = plt.subplots(figsize=(40, 40))
     ax.set_aspect('equal')
@@ -195,7 +240,7 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
         
         # 添加文字标签 - 显式设置背景为透明
         # mark long as red
-        if leaf.name in long_branch:
+        if leaf.name in long_terminal:
             text_color = 'red'
         else:
             text_color = 'black'
@@ -207,7 +252,8 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
         
         # 添加图片 - 在文字更外侧
         # only add figure for long branch
-        if leaf.name in long_branch:
+        # use "and false" to skip
+        if leaf.name in long_terminal and False:
             l = Path(leaf.name)
             image_path = l.with_suffix(l.suffix+'.png')
             # print(name.dtype, type(leaf.name), leaf.name, name[0])
@@ -221,7 +267,8 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
             img = mpimg.imread(image_path)
 
             # 计算图片位置 - 在文字外侧
-            img_radius = 1.25  # 图片在更外侧
+            # todo: set radius according to text length
+            img_radius = 2  # 图片在更外侧
             img_x = img_radius * np.cos(angle)
             img_y = img_radius * np.sin(angle)
 
@@ -238,7 +285,8 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
             else:
                 zoom_factor = 0.05
 
-            imagebox = OffsetImage(img, zoom=zoom_factor, alpha=1.0)
+            #imagebox = OffsetImage(img, zoom=zoom_factor, alpha=1.0)
+            imagebox = OffsetImage(img, zoom=0.05)
             ab = AnnotationBbox(imagebox, (img_x, img_y),
                               frameon=False,  # 无边框
                               boxcoords="data",
@@ -247,7 +295,7 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
             print(f"成功添加图片: {node_name}")
 
     # 设置绘图范围，留出足够空间显示文字和图片
-    margin = 0.4
+    margin = 0.5
     ax.set_xlim(-1.2 - margin, 1.2 + margin)
     ax.set_ylim(-1.2 - margin, 1.2 + margin)
     
@@ -297,15 +345,21 @@ def main():
     dots = data.reshape(a, b//2, 2)
 
     tree = load_and_preprocess_tree(arg.newick_file)
-    long_branch = get_long_branches(tree)
+    long_terminal, normal_terminal = get_terminales(tree)
     # 排序树
     tree = sort_tree_by_leaf_count(tree)
     # 计算环形布局
     positions = calculate_circular_layout(tree)
+    # draw shape
+    draw_leaf(name, dots, long_terminal, tree)
+    # only draw few enough shape
+    draw_leaf(name, dots, normal_terminal, tree)
+    draw_figure(long_terminal,
+                normal_terminal,arg.output.with_name('compare.png'))
     # 绘制树
-    draw_leaf(name, dots, long_branch, tree)
+    # todo: skip or draw rectangular?
     draw_circular_tree(tree, positions, arg.img_width, arg.text_size, arg.output,
-                       long_branch)
+                       long_terminal)
 
 if __name__ == "__main__":
     main()
