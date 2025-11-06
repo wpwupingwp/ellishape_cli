@@ -5,13 +5,10 @@ from scipy import stats
 from pathlib import Path
 import numpy as np
 from Bio import Phylo
-from Bio.Phylo import BaseTree
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-from matplotlib.patches import FancyArrowPatch
 import matplotlib
-from matplotlib import colors
 
 from ellishape_cli.tree import read_csv
 
@@ -307,14 +304,15 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
     print(f"进化树已保存至：{output_file}")
 
 
-def draw_new(old_tree, long_terminal):
-    tree = old_tree.copy()
+def draw_new(tree, long_terminal):
+    fig, ax = plt.subplots(figsize=(20, 20))
+    matplotlib.rcParams['font.size'] = 8
     for t in tree.get_terminals():
         if t.name in long_terminal:
             t.color = 'red'
         t.name = '_'.join(re.findall(r'\d{2,}', t.name))
-    Phylo.draw(tree)
-    plt.show()
+    Phylo.draw(tree, axes=ax)
+    plt.savefig('result.pdf', dpi=300, bbox_inches='tight', facecolor='white')
     pass
 
 
