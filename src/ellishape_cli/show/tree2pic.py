@@ -1,4 +1,5 @@
 import argparse
+import re
 # use pathlib instead of os
 from scipy import stats
 from pathlib import Path
@@ -306,6 +307,17 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
     print(f"进化树已保存至：{output_file}")
 
 
+def draw_new(old_tree, long_terminal):
+    tree = old_tree.copy()
+    for t in tree.get_terminals():
+        if t.name in long_terminal:
+            t.color = 'red'
+        t.name = '_'.join(re.findall(r'\d{2,}', t.name))
+    Phylo.draw(tree)
+    plt.show()
+    pass
+
+
 def parse_args():
     # independent function
     parser = argparse.ArgumentParser(description="生成带文字和图片的环形进化树")
@@ -358,8 +370,9 @@ def main():
                 normal_terminal,arg.output.with_name('compare.png'))
     # 绘制树
     # todo: skip or draw rectangular?
-    draw_circular_tree(tree, positions, arg.img_width, arg.text_size, arg.output,
-                       long_terminal)
+    draw_new(tree, long_terminal)
+    # draw_circular_tree(tree, positions, arg.img_width, arg.text_size, arg.output,
+    #                    long_terminal)
 
 if __name__ == "__main__":
     main()
