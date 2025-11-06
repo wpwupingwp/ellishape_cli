@@ -312,7 +312,7 @@ def draw_new(tree, long_terminal):
             t.color = 'red'
         t.name = '_'.join(re.findall(r'\d{2,}', t.name))
     Phylo.draw(tree, axes=ax)
-    plt.savefig('result.pdf', dpi=300, bbox_inches='tight', facecolor='white')
+    plt.savefig('result.pdf', bbox_inches='tight')
     pass
 
 
