@@ -1,6 +1,5 @@
 import argparse
 import re
-# use pathlib instead of os
 from scipy import stats
 from pathlib import Path
 import numpy as np
@@ -16,12 +15,12 @@ from ellishape_cli.tree import read_csv
 matplotlib.use('Agg')
 
 def load_and_preprocess_tree(newick_file):
-    """加载Newick文件并预处理树结构"""
     tree = Phylo.read(newick_file, 'newick')
-    # 清理叶子节点名称
-    # for leaf in tree.get_terminals():
-        # leaf.name = leaf.name.strip('"').strip("'").replace("_", " ").rstrip()
-    return tree
+    zero_terminal = list()
+    for t in tree.get_terminals():
+        if t.branch_length == 0:
+            zero_terminal.append(t.name)
+    return tree, zero_terminal
 
 
 def get_terminales(tree) -> set:
@@ -55,6 +54,9 @@ def get_terminales(tree) -> set:
 def draw_figure(long_terminal, normal_terminal, output):
 
     n_cols = len(long_terminal)
+    if n_cols == 0:
+        print('Long terminals not found!')
+        return
     figsize = (n_cols*5, 10)
     long_imgs = [Path(i+'.png') for i in long_terminal]
     normal_imgs = [Path(i+'.png') for i in normal_terminal]
@@ -169,19 +171,17 @@ def calculate_circular_layout(tree):
     return pos
 
 
-def draw_leaf(name, dots, terminals, tree):
+def draw_leaf(name, dots, terminals, tree, color='blue'):
     for leaf in tree.get_terminals():
         if leaf.name in terminals:
             image_path = Path(leaf.name)
             image_path = image_path.with_suffix(image_path.suffix+'.png')
-            fig, ax = plt.subplots()
-            # print(name.dtype, type(leaf.name), leaf.name, name[0])
             x = np.argwhere(name == leaf.name)[0]
             leaf_dot = dots[x].reshape(-1, 2)
-            fig2, ax2 = plt.subplots(figsize=(16, 16))
-            ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], 'b', linewidth=5)
-            ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], 'co', linewidth=1,
-                     alpha=0.5)
+            fig2, ax2 = plt.subplots(figsize=(8, 8))
+            ax2.plot(leaf_dot[:, 0], leaf_dot[:, 1], color, linewidth=2)
+            ax2.plot(leaf_dot[0, 0], leaf_dot[0, 1], color='black',
+                     marker='o', markersize=5, linewidth=1, alpha=0.5)
             plt.savefig(image_path)
     plt.close()
     return
@@ -354,16 +354,18 @@ def main():
 
     dots = data.reshape(a, b//2, 2)
 
-    tree = load_and_preprocess_tree(arg.newick_file)
+    tree, zero_terminal = load_and_preprocess_tree(arg.newick_file)
     long_terminal, normal_terminal = get_terminales(tree)
     # 排序树
     tree = sort_tree_by_leaf_count(tree)
     # 计算环形布局
-    positions = calculate_circular_layout(tree)
+    # positions = calculate_circular_layout(tree)
     # draw shape
-    draw_leaf(name, dots, long_terminal, tree)
+    draw_leaf(name, dots, long_terminal, tree, 'red')
     # only draw few enough shape
-    draw_leaf(name, dots, normal_terminal, tree)
+    draw_leaf(name, dots, normal_terminal, tree, 'deepskyblue')
+    # draw zero branch length's terminal
+    draw_leaf(name, dots, zero_terminal, tree, 'darkorange')
     draw_figure(long_terminal,
                 normal_terminal,arg.output.with_name('compare.png'))
     # 绘制树
@@ -371,6 +373,8 @@ def main():
     draw_new(tree, long_terminal)
     # draw_circular_tree(tree, positions, arg.img_width, arg.text_size, arg.output,
     #                    long_terminal)
+    return
+
 
 if __name__ == "__main__":
     main()
