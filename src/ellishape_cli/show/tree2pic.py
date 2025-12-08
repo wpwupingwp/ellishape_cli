@@ -11,20 +11,31 @@ import matplotlib
 
 from ellishape_cli.tree import read_csv
 
-# 使用非交互式后端
 matplotlib.use('Agg')
+
+def get_parent(tree, child_clade):
+    node_path = tree.get_path(child_clade)
+    return node_path[-2]
+
 
 def load_and_preprocess_tree(newick_file):
     tree = Phylo.read(newick_file, 'newick')
     zero_terminal = list()
+    last_parent = None
     for t in tree.get_terminals():
         if t.branch_length == 0:
             zero_terminal.append(t.name)
+            parent = get_parent(tree, t)
+            if parent == last_parent:
+                print(f'Collapse zero branch: {t.name}')
+                tree.collapse(t)
+            last_parent = parent
+    # Phylo.draw_ascii(tree)
     return tree, zero_terminal
 
 
-def get_terminales(tree) -> set:
-    # get long and normal terminales
+def get_terminals(tree) -> tuple[set, list]:
+    # get long and normal terminals
     # use scipy
     z_score_limit = 3
     name = list()
@@ -355,7 +366,7 @@ def main():
     dots = data.reshape(a, b//2, 2)
 
     tree, zero_terminal = load_and_preprocess_tree(arg.newick_file)
-    long_terminal, normal_terminal = get_terminales(tree)
+    long_terminal, normal_terminal = get_terminals(tree)
     # 排序树
     tree = sort_tree_by_leaf_count(tree)
     # 计算环形布局
