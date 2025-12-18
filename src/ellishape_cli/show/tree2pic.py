@@ -62,15 +62,15 @@ def get_terminals(tree) -> tuple[set, list]:
     return long_terminal, normal_terminal
 
 
-def draw_figure(long_terminal, normal_terminal, output):
+def draw_figure(long_terminal, normal_terminal, output, outdir):
 
     n_cols = len(long_terminal)
     if n_cols == 0:
         print('Long terminals not found!')
         return
     figsize = (n_cols*5, 10)
-    long_imgs = [Path(i+'.png') for i in long_terminal]
-    normal_imgs = [Path(i+'.png') for i in normal_terminal]
+    long_imgs = [(Path(outdir) / f"{i}.png") for i in long_terminal]
+    normal_imgs = [(Path(outdir) / f"{i}.png") for i in normal_terminal]
 
     # Create figure and subplots
     fig, axes = plt.subplots(2, n_cols, figsize=figsize)
@@ -182,11 +182,13 @@ def calculate_circular_layout(tree):
     return pos
 
 
-def draw_leaf(name, dots, terminals, tree, color='blue'):
+def draw_leaf(name, dots, terminals, tree, outdir, color='blue' ):
     for leaf in tree.get_terminals():
         if leaf.name in terminals:
-            image_path = Path(leaf.name)
-            image_path = image_path.with_suffix(image_path.suffix+'.png')
+            #image_path = Path(leaf.name)
+            #image_path = image_path.with_suffix(image_path.suffix+'.png')
+            safe_name = re.sub(r'[\\/]+', '_', str(leaf.name))
+            image_path = Path(outdir) / f"{safe_name}.png"
             x = np.argwhere(name == leaf.name)[0]
             leaf_dot = dots[x].reshape(-1, 2)
             fig2, ax2 = plt.subplots(figsize=(8, 8))
@@ -315,15 +317,31 @@ def draw_circular_tree(tree, positions, img_width, text_size, output_file,
     print(f"进化树已保存至：{output_file}")
 
 
-def draw_new(tree, long_terminal):
-    fig, ax = plt.subplots(figsize=(20, 20))
+def draw_new(tree, long_terminal, outdir):
+    # —— 动态尺寸：分段线性插值穿过指定锚点，并对两端做稳健边界 ——
+    n_leaves = max(1, len(tree.get_terminals()))
+    # 锚点（分支数 → 画布英寸）
+    # 左端安全下限（60 → 15），右端外推（2600 → 375）
+    anchors_leaves = np.array([60, 200, 600, 800, 1600, 2600], dtype=float)
+    anchors_size   = np.array([15,  25,  75,  150,  250,  375 ], dtype=float)
+    # np.interp 会在端点外进行“夹取”（返回端点值），
+    # 因为我们已加入两端锚点，所以这里的插值等价于“分段线性 + 两端稳健边界”
+    size_inch = float(np.interp([n_leaves], anchors_leaves, anchors_size)[0])
+
+    # 如需再加保险：限制极端值（可选）
+    size_inch = max(12.0, min(size_inch, 380.0))
+
+    fig, ax = plt.subplots(figsize=(size_inch, size_inch))
     matplotlib.rcParams['font.size'] = 8
+
+    # 标红长分支、规范叶名（保持原逻辑）
     for t in tree.get_terminals():
         if t.name in long_terminal:
             t.color = 'red'
-        t.name = '_'.join(re.findall(r'\d{2,}', t.name))
+        #t.name = '_'.join(re.findall(r'\d{2,}', t.name))
     Phylo.draw(tree, axes=ax)
-    plt.savefig('result.pdf', bbox_inches='tight')
+    plt.savefig(outdir /'result.pdf', bbox_inches='tight')
+    plt.close(fig)
     pass
 
 
@@ -338,6 +356,8 @@ def parse_args():
                         help="图片显示宽度（默认：100像素）")
     parser.add_argument("-t", "--text_size", type=int, default=10,
                         help="文字大小（默认：10）")
+    parser.add_argument("-outdir", "--outdir", default="output_dir",
+                        help="输出目录（若不存在则自动创建）")
     args = parser.parse_args()
     return args
 
@@ -349,6 +369,9 @@ def init_args(arg):
     arg.dot = Path(arg.dot).resolve()
     assert arg.dot.exists()
     arg.output = Path(arg.output).resolve()
+    # 创建输出目录（若不存在）
+    arg.outdir = Path(arg.outdir).resolve()
+    arg.outdir.mkdir(parents=True, exist_ok=True)
     return arg
 
 
@@ -372,16 +395,16 @@ def main():
     # 计算环形布局
     # positions = calculate_circular_layout(tree)
     # draw shape
-    draw_leaf(name, dots, long_terminal, tree, 'red')
+    draw_leaf(name, dots, long_terminal, tree, 'red', arg.outdir)
     # only draw few enough shape
-    draw_leaf(name, dots, normal_terminal, tree, 'deepskyblue')
+    draw_leaf(name, dots, normal_terminal, tree, 'deepskyblue', arg.outdir)
     # draw zero branch length's terminal
-    draw_leaf(name, dots, zero_terminal, tree, 'darkorange')
+    draw_leaf(name, dots, zero_terminal, tree, 'darkorange', arg.outdir)
     draw_figure(long_terminal,
-                normal_terminal,arg.output.with_name('compare.png'))
+                normal_terminal, arg.outdir /'compare.png', arg.outdir)
     # 绘制树
     # todo: skip or draw rectangular?
-    draw_new(tree, long_terminal)
+    draw_new(tree, long_terminal, arg.outdir)
     # draw_circular_tree(tree, positions, arg.img_width, arg.text_size, arg.output,
     #                    long_terminal)
     return
