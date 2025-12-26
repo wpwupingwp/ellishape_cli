@@ -54,16 +54,17 @@ def get_terminals(tree) -> tuple[set, list]:
             normal_terminal_len.append((name[index], length[index]))
     # sort by length and select represents
     normal_terminal_len.sort(key=lambda x:x[1])
-    if len(long_terminal) == 0:
-        normal_terminal = normal_terminal_len[0][0]
-    else:
-        for i in range(0, len(normal_terminal_len), len(length)//len(long_terminal)):
-            normal_terminal.append(normal_terminal_len[i][0])
+    # if len(long_terminal) == 0:
+    #     normal_terminal = normal_terminal_len[0][0]
+    # else:
+    #     for i in range(0, len(normal_terminal_len), len(length)//len(long_terminal)):
+    #         normal_terminal.append(normal_terminal_len[i][0])
+    normal_terminal = [i[0] for i in normal_terminal_len]
     return long_terminal, normal_terminal
 
 
 def draw_figure(long_terminal, normal_terminal, output, outdir):
-
+    normal_terminal = normal_terminal[:len(long_terminal)]
     n_cols = len(long_terminal)
     if n_cols == 0:
         print('Long terminals not found!')
@@ -390,16 +391,18 @@ def main():
 
     tree, zero_terminal = load_and_preprocess_tree(arg.newick_file)
     long_terminal, normal_terminal = get_terminals(tree)
+    # todo: filter less than 5-10
+    # todo: output list
     # 排序树
     tree = sort_tree_by_leaf_count(tree)
     # 计算环形布局
     # positions = calculate_circular_layout(tree)
     # draw shape
-    draw_leaf(name, dots, long_terminal, tree, 'red', arg.outdir)
+    draw_leaf(name, dots, long_terminal, tree, arg.outdir, 'red')
     # only draw few enough shape
-    draw_leaf(name, dots, normal_terminal, tree, 'deepskyblue', arg.outdir)
+    draw_leaf(name, dots, normal_terminal, tree, arg.outdir, 'deepskyblue')
     # draw zero branch length's terminal
-    draw_leaf(name, dots, zero_terminal, tree, 'darkorange', arg.outdir)
+    draw_leaf(name, dots, zero_terminal, tree, arg.outdir, 'darkorange')
     draw_figure(long_terminal,
                 normal_terminal, arg.outdir /'compare.png', arg.outdir)
     # 绘制树
@@ -407,6 +410,28 @@ def main():
     draw_new(tree, long_terminal, arg.outdir)
     # draw_circular_tree(tree, positions, arg.img_width, arg.text_size, arg.output,
     #                    long_terminal)
+    csv_out = arg.outdir / (arg.dot.stem+'.result.csv')
+    clean_dot_out = arg.outdir / (arg.dot.stem+'.clean.dot')
+    with open(csv_out, 'w') as f:
+        f.write('Type,Name\n')
+        for i in long_terminal:
+            f.write(f'Long,{i}\n')
+        for i in zero_terminal:
+            f.write(f'Zero,{i}\n')
+        for i in normal_terminal:
+            f.write(f'Normal,{i}\n')
+    # write clean dot
+    clean_dot = []
+    normal_name_set = set(normal_terminal)
+    with open(arg.dot) as f:
+        clean_dot.append(next(f))
+        for line in f:
+            name = Path(line.split(',')[0]).stem
+            if name in normal_name_set:
+                clean_dot.append(line)
+    with open(clean_dot_out, 'w') as f:
+        for line in clean_dot:
+            f.write(line)
     return
 
 
