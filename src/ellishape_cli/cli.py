@@ -824,6 +824,13 @@ def get_efd_from_chain_code(chain_code, n_order):
 def get_efd_from_contour(contour, n_order):
     # link final to start ?
     contour = np.concatenate([contour, contour[[0], :]], axis=0)
+    # yjj, remove repeat dot
+    diff = np.any(contour[1:]!=contour[:-1], axis=1)
+    keep_mask = np.concatenate([[True], diff])
+    contour = contour[keep_mask]
+    if len(contour) >= 2 and np.array_equal(contour[0], contour[-1]):
+        contour = contour[:-1]
+    # finish
     dxy = np.diff(contour, axis=0)
     dt = np.sqrt((dxy ** 2).sum(axis=1))
     t = np.concatenate([([0.0]), np.cumsum(dt)])
